@@ -1,0 +1,26 @@
+{
+  "name": "maxx",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "apps/web"
+  ],
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0 || ^26.0.0"
+  },
+  "scripts": {
+    "dev:web": "npm run dev --workspace @maxx/web",
+    "build": "npm run build --workspace @maxx/web",
+    "start:web": "npm run start --workspace @maxx/web",
+    "lint": "npm run lint --workspace @maxx/web",
+    "typecheck": "npm run typecheck --workspace @maxx/web",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "overrides": {
+    "eslint": "$eslint"
+  },
+  "devDependencies": {
+    "eslint": "10.12.0"
+  }
+}
