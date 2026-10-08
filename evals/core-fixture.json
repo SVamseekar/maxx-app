@@ -1,0 +1,806 @@
+{
+  "provider_mode": "fixture",
+  "seed": 20261005,
+  "interpretation": "Fixture replay/rule consistency; no model accuracy claim.",
+  "extraction": {
+    "screenshots": 5,
+    "fields": 25,
+    "exact_field_accuracy": 1.0,
+    "p50_ms": 8.29,
+    "records": [
+      {
+        "case": "headphones",
+        "mode": "fixture",
+        "field_matches": 5,
+        "fields": 5,
+        "latency_ms": 36.49,
+        "provider_calls": 0
+      },
+      {
+        "case": "phone",
+        "mode": "fixture",
+        "field_matches": 5,
+        "fields": 5,
+        "latency_ms": 8.29,
+        "provider_calls": 0
+      },
+      {
+        "case": "vacuum",
+        "mode": "fixture",
+        "field_matches": 5,
+        "fields": 5,
+        "latency_ms": 7.5,
+        "provider_calls": 0
+      },
+      {
+        "case": "unreadable",
+        "mode": "fixture",
+        "field_matches": 5,
+        "fields": 5,
+        "latency_ms": 18.86,
+        "provider_calls": 0
+      },
+      {
+        "case": "non-usd",
+        "mode": "fixture",
+        "field_matches": 5,
+        "fields": 5,
+        "latency_ms": 8.01,
+        "provider_calls": 0
+      }
+    ]
+  },
+  "matching": {
+    "pairs": 60,
+    "automatic": 50,
+    "correct": 50,
+    "precision": 1.0,
+    "confirmation_required": 10,
+    "records": [
+      {
+        "item": {
+          "title": "Sony WH-1000XM5 Black",
+          "brand": "Sony",
+          "model": "WH-1000XM5",
+          "variant": "Black"
+        },
+        "expected": "sony-wh1000xm5-black",
+        "actual": "sony-wh1000xm5-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM5 Silver",
+          "brand": "Sony",
+          "model": "WH-1000XM5",
+          "variant": "Silver"
+        },
+        "expected": "sony-wh1000xm5-silver",
+        "actual": "sony-wh1000xm5-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM4 Black",
+          "brand": "Sony",
+          "model": "WH-1000XM4",
+          "variant": "Black"
+        },
+        "expected": "sony-wh1000xm4-black",
+        "actual": "sony-wh1000xm4-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM4 Silver",
+          "brand": "Sony",
+          "model": "WH-1000XM4",
+          "variant": "Silver"
+        },
+        "expected": "sony-wh1000xm4-silver",
+        "actual": "sony-wh1000xm4-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WF-1000XM5 Black",
+          "brand": "Sony",
+          "model": "WF-1000XM5",
+          "variant": "Black"
+        },
+        "expected": "sony-wf1000xm5-black",
+        "actual": "sony-wf1000xm5-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WF-1000XM5 Silver",
+          "brand": "Sony",
+          "model": "WF-1000XM5",
+          "variant": "Silver"
+        },
+        "expected": "sony-wf1000xm5-silver",
+        "actual": "sony-wf1000xm5-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Bose QuietComfort Ultra Black",
+          "brand": "Bose",
+          "model": "QuietComfort Ultra",
+          "variant": "Black"
+        },
+        "expected": "bose-quietcomfortultra-black",
+        "actual": "bose-quietcomfortultra-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Bose QuietComfort Ultra Silver",
+          "brand": "Bose",
+          "model": "QuietComfort Ultra",
+          "variant": "Silver"
+        },
+        "expected": "bose-quietcomfortultra-silver",
+        "actual": "bose-quietcomfortultra-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Bose QuietComfort Black",
+          "brand": "Bose",
+          "model": "QuietComfort",
+          "variant": "Black"
+        },
+        "expected": "bose-quietcomfort-black",
+        "actual": "bose-quietcomfort-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Bose QuietComfort Silver",
+          "brand": "Bose",
+          "model": "QuietComfort",
+          "variant": "Silver"
+        },
+        "expected": "bose-quietcomfort-silver",
+        "actual": "bose-quietcomfort-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Apple AirPods Max Black",
+          "brand": "Apple",
+          "model": "AirPods Max",
+          "variant": "Black"
+        },
+        "expected": "apple-airpodsmax-black",
+        "actual": "apple-airpodsmax-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Apple AirPods Max Silver",
+          "brand": "Apple",
+          "model": "AirPods Max",
+          "variant": "Silver"
+        },
+        "expected": "apple-airpodsmax-silver",
+        "actual": "apple-airpodsmax-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Beats Studio Pro Black",
+          "brand": "Beats",
+          "model": "Studio Pro",
+          "variant": "Black"
+        },
+        "expected": "beats-studiopro-black",
+        "actual": "beats-studiopro-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Beats Studio Pro Silver",
+          "brand": "Beats",
+          "model": "Studio Pro",
+          "variant": "Silver"
+        },
+        "expected": "beats-studiopro-silver",
+        "actual": "beats-studiopro-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Beats Solo 4 Black",
+          "brand": "Beats",
+          "model": "Solo 4",
+          "variant": "Black"
+        },
+        "expected": "beats-solo4-black",
+        "actual": "beats-solo4-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Beats Solo 4 Silver",
+          "brand": "Beats",
+          "model": "Solo 4",
+          "variant": "Silver"
+        },
+        "expected": "beats-solo4-silver",
+        "actual": "beats-solo4-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "JBL Tune 770NC Black",
+          "brand": "JBL",
+          "model": "Tune 770NC",
+          "variant": "Black"
+        },
+        "expected": "jbl-tune770nc-black",
+        "actual": "jbl-tune770nc-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "JBL Tune 770NC Silver",
+          "brand": "JBL",
+          "model": "Tune 770NC",
+          "variant": "Silver"
+        },
+        "expected": "jbl-tune770nc-silver",
+        "actual": "jbl-tune770nc-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "JBL Live 770NC Black",
+          "brand": "JBL",
+          "model": "Live 770NC",
+          "variant": "Black"
+        },
+        "expected": "jbl-live770nc-black",
+        "actual": "jbl-live770nc-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "JBL Live 770NC Silver",
+          "brand": "JBL",
+          "model": "Live 770NC",
+          "variant": "Silver"
+        },
+        "expected": "jbl-live770nc-silver",
+        "actual": "jbl-live770nc-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sennheiser Momentum 4 Black",
+          "brand": "Sennheiser",
+          "model": "Momentum 4",
+          "variant": "Black"
+        },
+        "expected": "sennheiser-momentum4-black",
+        "actual": "sennheiser-momentum4-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sennheiser Momentum 4 Silver",
+          "brand": "Sennheiser",
+          "model": "Momentum 4",
+          "variant": "Silver"
+        },
+        "expected": "sennheiser-momentum4-silver",
+        "actual": "sennheiser-momentum4-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sennheiser Accentum Black",
+          "brand": "Sennheiser",
+          "model": "Accentum",
+          "variant": "Black"
+        },
+        "expected": "sennheiser-accentum-black",
+        "actual": "sennheiser-accentum-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sennheiser Accentum Silver",
+          "brand": "Sennheiser",
+          "model": "Accentum",
+          "variant": "Silver"
+        },
+        "expected": "sennheiser-accentum-silver",
+        "actual": "sennheiser-accentum-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Anker Soundcore Q45 Black",
+          "brand": "Anker",
+          "model": "Soundcore Q45",
+          "variant": "Black"
+        },
+        "expected": "anker-soundcoreq45-black",
+        "actual": "anker-soundcoreq45-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Anker Soundcore Q45 Silver",
+          "brand": "Anker",
+          "model": "Soundcore Q45",
+          "variant": "Silver"
+        },
+        "expected": "anker-soundcoreq45-silver",
+        "actual": "anker-soundcoreq45-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Anker Soundcore Q30 Black",
+          "brand": "Anker",
+          "model": "Soundcore Q30",
+          "variant": "Black"
+        },
+        "expected": "anker-soundcoreq30-black",
+        "actual": "anker-soundcoreq30-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Anker Soundcore Q30 Silver",
+          "brand": "Anker",
+          "model": "Soundcore Q30",
+          "variant": "Silver"
+        },
+        "expected": "anker-soundcoreq30-silver",
+        "actual": "anker-soundcoreq30-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Marshall Major IV Black",
+          "brand": "Marshall",
+          "model": "Major IV",
+          "variant": "Black"
+        },
+        "expected": "marshall-majoriv-black",
+        "actual": "marshall-majoriv-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Marshall Major IV Silver",
+          "brand": "Marshall",
+          "model": "Major IV",
+          "variant": "Silver"
+        },
+        "expected": "marshall-majoriv-silver",
+        "actual": "marshall-majoriv-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Marshall Major V Black",
+          "brand": "Marshall",
+          "model": "Major V",
+          "variant": "Black"
+        },
+        "expected": "marshall-majorv-black",
+        "actual": "marshall-majorv-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Marshall Major V Silver",
+          "brand": "Marshall",
+          "model": "Major V",
+          "variant": "Silver"
+        },
+        "expected": "marshall-majorv-silver",
+        "actual": "marshall-majorv-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Google Pixel Buds Pro Black",
+          "brand": "Google",
+          "model": "Pixel Buds Pro",
+          "variant": "Black"
+        },
+        "expected": "google-pixelbudspro-black",
+        "actual": "google-pixelbudspro-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Google Pixel Buds Pro Silver",
+          "brand": "Google",
+          "model": "Pixel Buds Pro",
+          "variant": "Silver"
+        },
+        "expected": "google-pixelbudspro-silver",
+        "actual": "google-pixelbudspro-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Samsung Galaxy Buds2 Pro Black",
+          "brand": "Samsung",
+          "model": "Galaxy Buds2 Pro",
+          "variant": "Black"
+        },
+        "expected": "samsung-galaxybuds2pro-black",
+        "actual": "samsung-galaxybuds2pro-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Samsung Galaxy Buds2 Pro Silver",
+          "brand": "Samsung",
+          "model": "Galaxy Buds2 Pro",
+          "variant": "Silver"
+        },
+        "expected": "samsung-galaxybuds2pro-silver",
+        "actual": "samsung-galaxybuds2pro-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Samsung Galaxy Buds3 Pro Black",
+          "brand": "Samsung",
+          "model": "Galaxy Buds3 Pro",
+          "variant": "Black"
+        },
+        "expected": "samsung-galaxybuds3pro-black",
+        "actual": "samsung-galaxybuds3pro-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Samsung Galaxy Buds3 Pro Silver",
+          "brand": "Samsung",
+          "model": "Galaxy Buds3 Pro",
+          "variant": "Silver"
+        },
+        "expected": "samsung-galaxybuds3pro-silver",
+        "actual": "samsung-galaxybuds3pro-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Nothing Ear Black",
+          "brand": "Nothing",
+          "model": "Ear",
+          "variant": "Black"
+        },
+        "expected": "nothing-ear-black",
+        "actual": "nothing-ear-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Nothing Ear Silver",
+          "brand": "Nothing",
+          "model": "Ear",
+          "variant": "Silver"
+        },
+        "expected": "nothing-ear-silver",
+        "actual": "nothing-ear-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "OnePlus Buds Pro 2 Black",
+          "brand": "OnePlus",
+          "model": "Buds Pro 2",
+          "variant": "Black"
+        },
+        "expected": "oneplus-budspro2-black",
+        "actual": "oneplus-budspro2-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "OnePlus Buds Pro 2 Silver",
+          "brand": "OnePlus",
+          "model": "Buds Pro 2",
+          "variant": "Silver"
+        },
+        "expected": "oneplus-budspro2-silver",
+        "actual": "oneplus-budspro2-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Jabra Elite 8 Active Black",
+          "brand": "Jabra",
+          "model": "Elite 8 Active",
+          "variant": "Black"
+        },
+        "expected": "jabra-elite8active-black",
+        "actual": "jabra-elite8active-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Jabra Elite 8 Active Silver",
+          "brand": "Jabra",
+          "model": "Elite 8 Active",
+          "variant": "Silver"
+        },
+        "expected": "jabra-elite8active-silver",
+        "actual": "jabra-elite8active-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Jabra Elite 10 Black",
+          "brand": "Jabra",
+          "model": "Elite 10",
+          "variant": "Black"
+        },
+        "expected": "jabra-elite10-black",
+        "actual": "jabra-elite10-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Jabra Elite 10 Silver",
+          "brand": "Jabra",
+          "model": "Elite 10",
+          "variant": "Silver"
+        },
+        "expected": "jabra-elite10-silver",
+        "actual": "jabra-elite10-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Skullcandy Crusher Evo Black",
+          "brand": "Skullcandy",
+          "model": "Crusher Evo",
+          "variant": "Black"
+        },
+        "expected": "skullcandy-crusherevo-black",
+        "actual": "skullcandy-crusherevo-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Skullcandy Crusher Evo Silver",
+          "brand": "Skullcandy",
+          "model": "Crusher Evo",
+          "variant": "Silver"
+        },
+        "expected": "skullcandy-crusherevo-silver",
+        "actual": "skullcandy-crusherevo-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Skullcandy Hesh ANC Black",
+          "brand": "Skullcandy",
+          "model": "Hesh ANC",
+          "variant": "Black"
+        },
+        "expected": "skullcandy-heshanc-black",
+        "actual": "skullcandy-heshanc-black",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Skullcandy Hesh ANC Silver",
+          "brand": "Skullcandy",
+          "model": "Hesh ANC",
+          "variant": "Silver"
+        },
+        "expected": "skullcandy-heshanc-silver",
+        "actual": "skullcandy-heshanc-silver",
+        "requires_confirmation": false,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM5"
+        },
+        "expected": null,
+        "actual": "sony-wh1000xm5-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Apple AirPods Max"
+        },
+        "expected": null,
+        "actual": "apple-airpodsmax-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sennheiser Momentum 4"
+        },
+        "expected": null,
+        "actual": "sennheiser-momentum4-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Marshall Major V"
+        },
+        "expected": null,
+        "actual": "marshall-majoriv-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "OnePlus Buds Pro 2"
+        },
+        "expected": null,
+        "actual": "oneplus-budspro2-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM5",
+          "variant": "Red"
+        },
+        "expected": null,
+        "actual": null,
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM5",
+          "variant": "Blue"
+        },
+        "expected": null,
+        "actual": null,
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony WH-1000XM5",
+          "variant": "White"
+        },
+        "expected": null,
+        "actual": null,
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Unrecognised lamp"
+        },
+        "expected": null,
+        "actual": "jabra-elite8active-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      },
+      {
+        "item": {
+          "title": "Sony headphones"
+        },
+        "expected": null,
+        "actual": "sony-wh1000xm4-black",
+        "requires_confirmation": true,
+        "mode": "fixture"
+      }
+    ]
+  },
+  "negotiation_invariants": {
+    "mode": "local deterministic engine; no provider calls",
+    "random_blocs": 200,
+    "partial_allocation_cases": 188,
+    "violation_count": 0,
+    "violations": []
+  },
+  "streamed_negotiations": {
+    "reset_ms": 91.24,
+    "measurement": "HTTP through Next.js proxy with incrementally consumed SSE",
+    "interpretation": "Fixture mode measures local plumbing only; live quality/cost unverified unless separately evaluated.",
+    "records": [
+      {
+        "scenario": "success",
+        "mode": "fixture",
+        "status": "SETTLED",
+        "rounds": 4,
+        "elapsed_ms": 1694.97,
+        "first_event_ms": 116.67,
+        "streamed_events": 671,
+        "provider_calls": 0,
+        "allocated": 451,
+        "unserved": 150
+      },
+      {
+        "scenario": "failure",
+        "mode": "fixture",
+        "status": "FAILED",
+        "rounds": 4,
+        "elapsed_ms": 1538.16,
+        "first_event_ms": 48.09,
+        "streamed_events": 171,
+        "provider_calls": 0,
+        "allocated": 0,
+        "unserved": 101
+      },
+      {
+        "scenario": "flaky",
+        "mode": "fixture",
+        "status": "SETTLED",
+        "rounds": 4,
+        "elapsed_ms": 1516.51,
+        "first_event_ms": 41.73,
+        "streamed_events": 168,
+        "provider_calls": 0,
+        "allocated": 77,
+        "unserved": 24
+      }
+    ]
+  },
+  "status": "passed"
+}

@@ -1,0 +1,149 @@
+[
+  {
+    "name": "headphones",
+    "file": "screenshots/headphones.png",
+    "sha256": "1278114d997e9564bcbd6fb29313167a25ffc9bd1db8d70c29ba7d7e1323fc62",
+    "item": {
+      "title": "Sony WH-1000XM5 Black",
+      "brand": "Sony",
+      "model": "WH-1000XM5",
+      "variant": "Black",
+      "price": "349.99",
+      "currency": "USD",
+      "merchant": "Audio store",
+      "qty": 1,
+      "confidence": 0.99,
+      "visible_text": "Audio store\nYour cart\nSony WH-1000XM5 Black\nQuantity: 1\n$349.99\nShipping calculated at checkout\nSynthetic evaluation screenshot"
+    },
+    "rows": [
+      {
+        "title": "Sony WH-1000XM5 Black",
+        "url": "https://store0.example/headphones",
+        "price": "299.99",
+        "shipping": "0",
+        "same_item": true,
+        "in_stock": true,
+        "evidence": "$299.99 In stock. Free shipping. Synthetic fixture."
+      },
+      {
+        "title": "Sony WH-1000XM5 Black",
+        "url": "https://store1.example/headphones",
+        "price": "309.99",
+        "shipping": "0",
+        "same_item": true,
+        "in_stock": true,
+        "evidence": "$309.99 In stock. Free shipping. Synthetic fixture."
+      }
+    ]
+  },
+  {
+    "name": "phone",
+    "file": "screenshots/phone.png",
+    "sha256": "5aee1170383936e3c513c44b5dab017d06d57e6e47fb780f436f2817b11e0726",
+    "item": {
+      "title": "Apple iPhone 16 128GB Black",
+      "brand": "Apple",
+      "model": "iPhone 16",
+      "variant": "128GB Black",
+      "price": "799.00",
+      "currency": "USD",
+      "merchant": "Phone store",
+      "qty": 1,
+      "confidence": 0.99,
+      "visible_text": "Phone store\nYour cart\nApple iPhone 16 128GB Black\nQuantity: 1\n$799.00\nShipping calculated at checkout\nSynthetic evaluation screenshot"
+    },
+    "rows": [
+      {
+        "title": "Apple iPhone 16 128GB Black",
+        "url": "https://store0.example/phone",
+        "price": "749.00",
+        "shipping": "0",
+        "same_item": true,
+        "in_stock": true,
+        "evidence": "$749.00 In stock. Free shipping. Synthetic fixture."
+      },
+      {
+        "title": "Apple iPhone 16 128GB Black",
+        "url": "https://store1.example/phone",
+        "price": "759.0",
+        "shipping": "0",
+        "same_item": true,
+        "in_stock": true,
+        "evidence": "$759.0 In stock. Free shipping. Synthetic fixture."
+      }
+    ]
+  },
+  {
+    "name": "vacuum",
+    "file": "screenshots/vacuum.png",
+    "sha256": "70e4ec41a36f1da632f8f6768559d624c2823aa31dd5027703fc9db144aea3f8",
+    "item": {
+      "title": "Dyson V8 Cordless Vacuum",
+      "brand": "Dyson",
+      "model": "V8",
+      "variant": "Cordless",
+      "price": "399.99",
+      "currency": "USD",
+      "merchant": "Home store",
+      "qty": 1,
+      "confidence": 0.99,
+      "visible_text": "Home store\nYour cart\nDyson V8 Cordless Vacuum\nQuantity: 1\n$399.99\nShipping calculated at checkout\nSynthetic evaluation screenshot"
+    },
+    "rows": [
+      {
+        "title": "Dyson V8 Cordless Vacuum",
+        "url": "https://store0.example/vacuum",
+        "price": "379.99",
+        "shipping": "0",
+        "same_item": true,
+        "in_stock": true,
+        "evidence": "$379.99 In stock. Free shipping. Synthetic fixture."
+      },
+      {
+        "title": "Dyson V8 Cordless Vacuum",
+        "url": "https://store1.example/vacuum",
+        "price": "389.99",
+        "shipping": "0",
+        "same_item": true,
+        "in_stock": true,
+        "evidence": "$389.99 In stock. Free shipping. Synthetic fixture."
+      }
+    ]
+  },
+  {
+    "name": "unreadable",
+    "file": "screenshots/unreadable.png",
+    "sha256": "dc2f1582e38799a778124ab4130b0e67b8d63ffd39527a06dc81ab23c7b4e23b",
+    "item": {
+      "title": "Sony WH-1000XM5 Black",
+      "brand": "Sony",
+      "model": "WH-1000XM5",
+      "variant": "Black",
+      "price": null,
+      "currency": "USD",
+      "merchant": "Audio store",
+      "qty": 1,
+      "confidence": 0.4,
+      "visible_text": "Audio store\nYour cart\nSony WH-1000XM5 Black\nQuantity: 1\n$???\nShipping calculated at checkout\nSynthetic evaluation screenshot"
+    },
+    "rows": []
+  },
+  {
+    "name": "non-usd",
+    "file": "screenshots/non-usd.png",
+    "sha256": "402af897ab6f572a9d3cfc8dfdd69ad862810092bdd6dfc73207569446466196",
+    "item": {
+      "title": "Sony WH-1000XM5 Black",
+      "brand": "Sony",
+      "model": "WH-1000XM5",
+      "variant": "Black",
+      "price": "299.00",
+      "currency": "EUR",
+      "merchant": "Audio store",
+      "qty": 1,
+      "confidence": 0.99,
+      "visible_text": "Audio store\nYour cart\nSony WH-1000XM5 Black\nQuantity: 1\nEUR 299.00\nShipping calculated at checkout\nSynthetic evaluation screenshot"
+    },
+    "rows": []
+  }
+]

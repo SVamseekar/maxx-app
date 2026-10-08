@@ -1,0 +1,325 @@
+import base64
+import hashlib
+import json
+import re
+import time
+from decimal import Decimal
+from urllib.parse import urlparse
+
+import httpx2 as httpx
+from pydantic import Field
+
+from maxx import storage
+from maxx.config import ROOT, settings
+from maxx.matching import match_item
+from maxx.providers import ProviderError, chat, request
+from maxx.scan import Contract, Item, Move, PriceRow, ScanResult, money_score, template_move
+
+
+class Rows(Contract):
+    rows: list[PriceRow] = Field(max_length=8)
+
+
+def visible_price(price: Decimal, text: str) -> bool:
+    # Do not allow a model to manufacture a price absent from its evidence text.
+    amounts = re.findall(r"(?:USD\s*|\$\s*)(\d[\d,]*(?:\.\d{1,2})?)(?!\d|\.\d)", text)
+    return any(Decimal(value.replace(",", "")) == price for value in amounts)
+
+
+def ground_rows(rows: list[PriceRow], sources: list[dict]) -> list[PriceRow]:
+    by_url = {s["url"]: s for s in sources}
+    result = []
+    seen_hosts = set()
+    for row in rows:
+        source = by_url.get(str(row.url))
+        if not source:
+            continue
+        text = source["content"]
+        host = urlparse(str(row.url)).hostname
+        if host in seen_hosts or not visible_price(row.price, text):
+            continue
+        if row.evidence not in text or not row.evidence:
+            continue
+        # Explicitly reject non-retail condition and ungrounded shipping/stock claims.
+        if re.search(
+            r"\b(refurbished|renewed|used|out of stock|sold out|per month|"
+            r"CAD|AUD|HKD|SGD|EUR|GBP)\b|[€£₹]",
+            text,
+            re.I,
+        ):
+            row.same_item = False
+        if row.shipping == 0 and not re.search(r"free shipping|shipping\s*:?\s*\$0", text, re.I):
+            row.shipping = None
+        elif row.shipping and not re.search(
+            rf"shipping\s*:?\s*\$\s*{re.escape(str(row.shipping))}", text, re.I
+        ):
+            row.shipping = None
+        row.in_stock = row.in_stock and bool(
+            re.search(r"\bin stock\b|available to ship", text, re.I)
+        )
+        seen_hosts.add(host)
+        result.append(row)
+    return result
+
+
+def price_cache_key(item, history=False):
+    matched = match_item(item)
+    identity = {k: getattr(item, k) for k in ("title", "brand", "model", "variant")}
+    if not matched.requires_confirmation:
+        identity = {"product_key": matched.candidates[0].product_key}
+    identity.update(
+        qty=item.qty, currency=item.currency, purpose="history" if history else "retail"
+    )
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+
+
+async def comparable_prices(client, item, request_id, calls, history=False):
+    query = " ".join(filter(None, [item.brand, item.model, item.variant, item.title]))[:400] + (
+        " USD price history deal buy new" if history else " USD price buy new"
+    )
+    cache_key = price_cache_key(item, history)
+    cached = storage.get_store().cache_get(cache_key)
+    if cached is not None:
+        calls.append(
+            {"provider": "tavily", "purpose": "search", "status": "cache", "latency_ms": 0}
+        )
+        return [PriceRow.model_validate(r) for r in cached]
+    data = await request(
+        client,
+        request_id,
+        calls,
+        "tavily",
+        "search",
+        "https://api.tavily.com/search",
+        {"query": query, "search_depth": "basic", "max_results": 8},
+    )
+    sources = [
+        {"url": s["url"], "content": (s.get("title", "") + "\n" + s.get("content", ""))[:10000]}
+        for s in data.get("results", [])
+        if s.get("url", "").startswith("https://")
+    ]
+    missing = [s["url"] for s in sources if not re.search(r"\$\s*\d|USD\s*\d", s["content"])][:3]
+    if missing:
+        extracted = await request(
+            client,
+            request_id,
+            calls,
+            "tavily",
+            "extract",
+            "https://api.tavily.com/extract",
+            {"urls": missing},
+        )
+        for source in sources:
+            for row in extracted.get("results", []):
+                if row.get("url") == source["url"]:
+                    source["content"] += "\n" + row.get("raw_content", "")[:10000]
+    if not sources:
+        return []
+    parsed = await chat(
+        client,
+        request_id,
+        calls,
+        "fast",
+        (
+            "Extract comparable new retail listings from SOURCES. Match exact "
+            "brand, model, capacity, size, color, bundle and quantity; ambiguous "
+            "variants have same_item=false. USD only. Each price must be explicit"
+            " in its own source text. Never treat a list price, monthly payment "
+            "or coupon-dependent price as the purchase price. Unknown "
+            "shipping=null; in_stock=true only with explicit stock evidence. "
+            "evidence must be an exact source substring. Return "
+        )
+        + json.dumps(Rows.model_json_schema())
+        + "\nITEM="
+        + item.model_dump_json()
+        + "\nSOURCES="
+        + json.dumps(sources),
+        Rows,
+    )
+    rows = ground_rows(parsed.rows, sources)
+    storage.get_store().cache_put(cache_key, [r.model_dump(mode="json") for r in rows])
+    return rows
+
+
+async def run_scan(
+    data: bytes, mime: str, owns: bool, request_id: str, corrections: dict | None = None
+) -> ScanResult:
+    started = time.perf_counter()
+    calls = []
+    warnings = []
+    if settings.scan_mode == "fixture":
+        manifest = json.loads((ROOT / "evals/fixtures.json").read_text())
+        case = next((c for c in manifest if c["sha256"] == hashlib.sha256(data).hexdigest()), None)
+        if case is None:
+            raise ProviderError(
+                "Fixture mode accepts only the supplied sample screenshots. Configure"
+                " live mode for your own images."
+            )
+        item = Item.model_validate(case["item"])
+        rows = [PriceRow.model_validate(r) for r in case["rows"]]
+        warnings.append(
+            "Fixture replay: extraction and prices are canned test data, not live provider results."
+        )
+    elif settings.scan_mode == "live":
+        if not settings.nebius_api_key or not settings.tavily_api_key:
+            raise ProviderError(
+                "Live scanning is not configured. Follow docs/operator-actions.md to "
+                "configure providers."
+            )
+        async with httpx.AsyncClient(timeout=settings.provider_timeout) as client:
+            catalog = await request(
+                client,
+                request_id,
+                calls,
+                "nebius",
+                "models",
+                settings.nebius_base_url.rstrip("/") + "/models",
+            )
+            ids = {m["id"] for m in catalog.get("data", [])}
+            if any(
+                m not in ids
+                for m in [settings.model_vision, settings.model_fast, settings.model_reason]
+            ):
+                raise ProviderError(
+                    "A configured model ID is unavailable. Run the provider verification "
+                    "script and update MODEL_* on the server."
+                )
+            item = await chat(
+                client,
+                request_id,
+                calls,
+                "vision",
+                (
+                    "Read the first product in this shopping screenshot. Extract only "
+                    "visible fields. Unit price, not cart total; USD only when explicit. "
+                    "Unreadable values=null. Include the exact visible text including "
+                    "currency and price. Do not infer a price. Return "
+                )
+                + json.dumps(Item.model_json_schema()),
+                Item,
+                "data:" + mime + ";base64," + base64.b64encode(data).decode(),
+            )
+            if item.price is not None and not visible_price(item.price, item.visible_text):
+                item.price = None
+                warnings.append("The extracted price lacked visible USD evidence and was removed.")
+            normalised = await chat(
+                client,
+                request_id,
+                calls,
+                "fast",
+                (
+                    "Normalise brand, model and variant only. Preserve title, price, "
+                    "currency, merchant, qty and visible_text exactly. Return "
+                )
+                + json.dumps(Item.model_json_schema())
+                + "\n"
+                + item.model_dump_json(),
+                Item,
+            )
+            item.brand, item.model, item.variant = (
+                normalised.brand,
+                normalised.model,
+                normalised.variant,
+            )
+            if corrections:
+                item = item.model_copy(update=corrections)
+            rows = []
+            if item.title and item.price and item.currency == "USD":
+                try:
+                    rows = await comparable_prices(client, item, request_id, calls)
+                except ProviderError:
+                    warnings.append(
+                        "Price search failed. Try scanning again; no score was inferred."
+                    )
+            score = money_score(item.price, rows, owns)
+            move = template_move(item, score)
+            if not score.low_confidence and score.value is not None:
+                try:
+                    candidate = await chat(
+                        client,
+                        request_id,
+                        calls,
+                        "reason",
+                        (
+                            "Write a short recommendation. Use the supplied primary move exactly."
+                            " Do not add any numbers, prices, percentages, unsupported claims or "
+                            "sources. Explain only the price comparison. Return "
+                        )
+                        + json.dumps(Move.model_json_schema())
+                        + "\n"
+                        + json.dumps(
+                            {
+                                "item": item.model_dump(mode="json"),
+                                "score": score.model_dump(mode="json"),
+                                "primary": move.primary,
+                            }
+                        ),
+                        Move,
+                    )
+                    if candidate.primary == move.primary and not re.search(
+                        r"\d|\$|%", candidate.headline + candidate.explanation
+                    ):
+                        move = candidate
+                    else:
+                        warnings.append(
+                            "Verdict failed the numbers check; using the deterministic template."
+                        )
+                except ProviderError:
+                    warnings.append("Verdict model failed; using the deterministic template.")
+            return finish(item, rows, owns, request_id, calls, warnings, started, move)
+    else:
+        raise ProviderError("SCAN_MODE must be live or fixture.")
+    if corrections:
+        if corrections.get("title", item.title) != item.title:
+            rows = []
+        item = item.model_copy(update=corrections)
+    return finish(item, rows, owns, request_id, calls, warnings, started)
+
+
+def finish(item, rows, owns, request_id, calls, warnings, started, move=None):
+    matched = match_item(item)
+    open_bloc = None
+    if not matched.requires_confirmation and item.currency == "USD":
+        key = matched.candidates[0].product_key
+        candidates = [
+            b
+            for b in storage.get_store().list()
+            if b.product_key == key
+            and b.status == "OPEN"
+            and b.closes_at > int(time.time())
+            and b.target_price is not None
+            and b.market_mode != "unavailable"
+            and b.market_expires_at > int(time.time())
+        ]
+        open_bloc = min(candidates, key=lambda b: (b.target_price, b.id), default=None)
+    score = money_score(
+        item.price if item.currency == "USD" else None,
+        rows,
+        owns,
+        open_bloc.target_price if open_bloc else None,
+    )
+    if score.bloc_bonus:
+        move = template_move(item, score)
+    if not item.title or not item.price:
+        warnings.append(
+            "Product or price could not be read. Edit the details or upload a clearer screenshot."
+        )
+    if item.currency != "USD":
+        warnings.append("This milestone supports USD only; no currency conversion is inferred.")
+    if score.low_confidence:
+        warnings.append(
+            "Fewer than two independent comparable listings with known shipping "
+            "and stock. Low confidence."
+        )
+    return ScanResult(
+        request_id=request_id,
+        mode=settings.scan_mode,
+        item=item,
+        rows=rows,
+        score=score,
+        recommendation=move or template_move(item, score),
+        warnings=warnings,
+        latency_ms=round((time.perf_counter() - started) * 1000),
+        calls=calls,
+        open_bloc_id=open_bloc.id if open_bloc and score.bloc_bonus else None,
+    )

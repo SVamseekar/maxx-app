@@ -1,0 +1,10 @@
+export type BlocEvent = { id: number; type: string; data: { round?: number; price?: string; qty?: number; seller?: string; to?: string; text?: string; message?: string; status?: Bloc["status"]; served?: number; unserved?: number; avg_price?: string | null; reason?: string; clamped?: boolean } };
+export type Member = { id: string; user_id: string; max_price: string; joined_order: number; status: "HELD" | "LEFT" | "WIN" | "BELOW_CLEARING" | "RELEASED"; final_price: string | null; seller_id: string | null };
+export type Bloc = { generation: number; revision: number; id: string; title: string; product_key: string; typical_price: string; target_price: string | null; closes_at: number; committed_total: string; target_reason: string; market_mode: "fixture" | "live" | "unavailable"; market_rows: {title:string;url:string;price:string;shipping:string|null}[]; status: "FORMING" | "OPEN" | "NEGOTIATING" | "SETTLED" | "FAILED"; mode: "fixture" | "live"; scenario: "success" | "failure" | "flaky"; members: Member[]; round: number; failure_reason: string | null; events: BlocEvent[]; outcome: { allocations: { member_id: string; seller_id: string; price: string }[]; unserved: string[] } | null; calls: { provider: string; purpose: string; model: string | null; status: string; latency_ms: number; cost_usd: string | null; cost_status: string; tokens: Record<string, unknown> | null }[] };
+export const usd = (value: string | number | null) => value === null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
+export async function api<T>(url: string, body?: unknown): Promise<T> {
+  const response = await fetch(url, { method: body === undefined ? "GET" : "POST", headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(35000) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message ?? (typeof data.detail === "string" ? data.detail : "Check the fields and retry."));
+  return data as T;
+}

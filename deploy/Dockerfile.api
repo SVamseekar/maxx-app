@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+WORKDIR /app
+RUN pip install --no-cache-dir uv==0.10.8
+COPY services/api/pyproject.toml services/api/uv.lock /app/services/api/
+RUN uv sync --directory services/api --locked --no-dev
+COPY services/api/maxx /app/services/api/maxx
+COPY services/api/alembic.ini /app/services/api/alembic.ini
+COPY services/api/alembic /app/services/api/alembic
+COPY evals/fixtures.json /app/evals/fixtures.json
+COPY evals/screenshots /app/evals/screenshots
+ENV PATH="/app/services/api/.venv/bin:$PATH" PYTHONPATH="/app/services/api"
+ENV PORT=8000 WEB_CONCURRENCY=1
+EXPOSE 8000
+CMD ["sh", "-c", "cd /app/services/api && alembic upgrade head && exec uvicorn maxx.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

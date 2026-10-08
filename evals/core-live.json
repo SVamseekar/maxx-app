@@ -1,0 +1,8 @@
+{
+  "provider_mode": "live",
+  "seed": 20261005,
+  "interpretation": "Live synthetic pilot; not a representative 40-image benchmark.",
+  "status": "unverified",
+  "reason": "Evaluation incomplete; check modes, API and server-side credentials.",
+  "error_type": "ValueError"
+}

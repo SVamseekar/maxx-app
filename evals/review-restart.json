@@ -1,0 +1,42 @@
+{
+  "checked_on": "2026-10-08",
+  "mode": "fixture",
+  "database": "local Postgres",
+  "transport": "production Next.js proxy",
+  "api_process_restart": true,
+  "status": "passed",
+  "provider_calls": 0,
+  "records": [
+    {
+      "scenario": "success",
+      "status": "SETTLED",
+      "events": 1273,
+      "allocated": 451,
+      "snapshot_unchanged": true,
+      "query_cursor_replay": "passed",
+      "header_cursor_replay": "passed",
+      "public_private_fields": "absent"
+    },
+    {
+      "scenario": "failure",
+      "status": "FAILED",
+      "events": 273,
+      "allocated": 0,
+      "snapshot_unchanged": true,
+      "query_cursor_replay": "passed",
+      "header_cursor_replay": "passed",
+      "public_private_fields": "absent"
+    },
+    {
+      "scenario": "flaky",
+      "status": "SETTLED",
+      "events": 270,
+      "allocated": 77,
+      "snapshot_unchanged": true,
+      "query_cursor_replay": "passed",
+      "header_cursor_replay": "passed",
+      "public_private_fields": "absent"
+    }
+  ],
+  "limitation": "Process restart on local Postgres; no hosted failover/backup or live-provider claim."
+}

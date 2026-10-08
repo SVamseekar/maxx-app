@@ -1,0 +1,42 @@
+# Preparation only. Creating these services requires operator action.
+# Durable state uses external Postgres; no application disk is required.
+services:
+  - type: web
+    name: maxx-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/Dockerfile.api
+    dockerContext: .
+    autoDeployTrigger: off
+    healthCheckPath: /health/ready
+    envVars:
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: SCAN_MODE
+        value: fixture
+      - key: NEGOTIATION_MODE
+        value: fixture
+      - key: MATCH_MODE
+        value: fixture
+      - key: WORKER_ENABLED
+        value: "true"
+      - key: BLOC_OPEN_SECONDS
+        value: "3600"
+      - key: MODEL_RATES_JSON
+        value: "{}"
+      - key: DATABASE_URL
+        sync: false
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+  - type: web
+    name: maxx-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/Dockerfile.web
+    dockerContext: .
+    autoDeployTrigger: off
+    envVars:
+      - key: API_BASE_URL
+        sync: false

@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -12,8 +14,37 @@ from maxx.database import engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
-    engine.dispose()
+    from maxx.config import settings
+    from maxx.negotiate.routes import get_runtime, peek_runtime
+
+    worker = None
+    if settings.worker_enabled:
+        runtime = get_runtime()
+
+        async def dispatch():
+            while True:
+                try:
+                    await runtime.tick()
+                except SQLAlchemyError:
+                    # Never log connection exceptions, which may include credentials.
+                    logging.getLogger(__name__).warning(
+                        "Job dispatcher database unavailable; retrying."
+                    )
+                    await asyncio.sleep(5)
+                    continue
+                await asyncio.sleep(1)
+
+        worker = asyncio.create_task(dispatch())
+    try:
+        yield
+    finally:
+        if worker:
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+        runtime = peek_runtime()
+        if runtime is not None:
+            await runtime.close()
+        engine.dispose()
 
 
 app = FastAPI(title="Maxx API", version="0.1.0", lifespan=lifespan)
@@ -44,3 +75,16 @@ def ready(connection: Annotated[Connection, Depends(get_connection)]) -> dict[st
     """Readiness: verify the configured database with a real query."""
     connection.execute(text("SELECT 1"))
     return {"status": "ok", "service": "maxx-api", "database": "ok"}
+
+
+from maxx.scan_routes import router  # noqa: E402
+
+app.include_router(router)
+
+from maxx.negotiate.routes import router as bloc_router  # noqa: E402
+
+app.include_router(bloc_router)
+
+from maxx.transparency import router as transparency_router  # noqa: E402
+
+app.include_router(transparency_router)

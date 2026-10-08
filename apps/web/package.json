@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack --hostname 127.0.0.1",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3001",
     "build": "next build --webpack",
-    "start": "next start --hostname 127.0.0.1",
+    "start": "next start --hostname 127.0.0.1 --port 3001",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "next": "16.3.8",
@@ -26,5 +27,6 @@
     "@eslint/js": "10.0.1",
     "typescript-eslint": "8.71.0",
     "eslint-plugin-react-hooks": "7.1.1"
-  }
+  },
+  "type": "module"
 }

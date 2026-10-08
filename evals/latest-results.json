@@ -1,0 +1,180 @@
+{
+  "modes": [
+    "fixture"
+  ],
+  "runs": 15,
+  "successful": 15,
+  "screenshots": 5,
+  "p50_ms": 11.68,
+  "p90_ms": 15.79,
+  "measurement": "wall-clock HTTP upload through Next.js proxy to FastAPI",
+  "field_exact_match": 1.0,
+  "interpretation": "Fixture replay consistency only; model accuracy and live provider latency unmeasured.",
+  "records": [
+    {
+      "case": "headphones",
+      "repeat": 0,
+      "http_status": 200,
+      "elapsed_ms": 467.17,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 75,
+      "provider_calls": 0
+    },
+    {
+      "case": "headphones",
+      "repeat": 1,
+      "http_status": 200,
+      "elapsed_ms": 15.79,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 75,
+      "provider_calls": 0
+    },
+    {
+      "case": "headphones",
+      "repeat": 2,
+      "http_status": 200,
+      "elapsed_ms": 12.62,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 75,
+      "provider_calls": 0
+    },
+    {
+      "case": "phone",
+      "repeat": 0,
+      "http_status": 200,
+      "elapsed_ms": 12.79,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 89,
+      "provider_calls": 0
+    },
+    {
+      "case": "phone",
+      "repeat": 1,
+      "http_status": 200,
+      "elapsed_ms": 12.99,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 89,
+      "provider_calls": 0
+    },
+    {
+      "case": "phone",
+      "repeat": 2,
+      "http_status": 200,
+      "elapsed_ms": 11.68,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 89,
+      "provider_calls": 0
+    },
+    {
+      "case": "vacuum",
+      "repeat": 0,
+      "http_status": 200,
+      "elapsed_ms": 11.69,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 91,
+      "provider_calls": 0
+    },
+    {
+      "case": "vacuum",
+      "repeat": 1,
+      "http_status": 200,
+      "elapsed_ms": 11.43,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 91,
+      "provider_calls": 0
+    },
+    {
+      "case": "vacuum",
+      "repeat": 2,
+      "http_status": 200,
+      "elapsed_ms": 11.61,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": 91,
+      "provider_calls": 0
+    },
+    {
+      "case": "unreadable",
+      "repeat": 0,
+      "http_status": 200,
+      "elapsed_ms": 11.68,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": null,
+      "provider_calls": 0
+    },
+    {
+      "case": "unreadable",
+      "repeat": 1,
+      "http_status": 200,
+      "elapsed_ms": 10.63,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": null,
+      "provider_calls": 0
+    },
+    {
+      "case": "unreadable",
+      "repeat": 2,
+      "http_status": 200,
+      "elapsed_ms": 9.9,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": null,
+      "provider_calls": 0
+    },
+    {
+      "case": "non-usd",
+      "repeat": 0,
+      "http_status": 200,
+      "elapsed_ms": 10.44,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": null,
+      "provider_calls": 0
+    },
+    {
+      "case": "non-usd",
+      "repeat": 1,
+      "http_status": 200,
+      "elapsed_ms": 11.07,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": null,
+      "provider_calls": 0
+    },
+    {
+      "case": "non-usd",
+      "repeat": 2,
+      "http_status": 200,
+      "elapsed_ms": 12.06,
+      "mode": "fixture",
+      "field_matches": 5,
+      "field_count": 5,
+      "score": null,
+      "provider_calls": 0
+    }
+  ]
+}

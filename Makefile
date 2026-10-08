@@ -20,9 +20,22 @@ migrate:
 check:
 	npm run lint
 	npm run typecheck
+	npm run test --workspace @maxx/web
 	npm run build
 	$(UV) run --locked ruff check .
 	$(UV) run --locked ruff format --check .
 	$(UV) run --locked pytest
 smoke:
 	npm run smoke
+
+.PHONY: evaluate evaluate-live
+evaluate:
+	$(UV) run --locked python -m maxx.evaluate --mode fixture
+evaluate-live:
+	$(UV) run --locked python -m maxx.evaluate --mode live
+
+.PHONY: verify-persistence migrate-legacy
+verify-persistence:
+	$(UV) run --locked python -m maxx.verify_persistence
+migrate-legacy:
+	$(UV) run --locked python -m maxx.migrate_legacy

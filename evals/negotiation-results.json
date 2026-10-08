@@ -1,0 +1,42 @@
+{
+  "measurement": "HTTP through Next.js proxy with incrementally consumed SSE",
+  "interpretation": "Fixture mode measures local plumbing only; live quality/cost unverified unless separately evaluated.",
+  "records": [
+    {
+      "scenario": "success",
+      "mode": "fixture",
+      "status": "SETTLED",
+      "rounds": 4,
+      "elapsed_ms": 1553.95,
+      "first_event_ms": 47.81,
+      "streamed_events": 671,
+      "provider_calls": 0,
+      "allocated": 526,
+      "unserved": 75
+    },
+    {
+      "scenario": "failure",
+      "mode": "fixture",
+      "status": "FAILED",
+      "rounds": 4,
+      "elapsed_ms": 1291.58,
+      "first_event_ms": 18.06,
+      "streamed_events": 171,
+      "provider_calls": 0,
+      "allocated": 0,
+      "unserved": 101
+    },
+    {
+      "scenario": "flaky",
+      "mode": "fixture",
+      "status": "SETTLED",
+      "rounds": 4,
+      "elapsed_ms": 1332.41,
+      "first_event_ms": 23.71,
+      "streamed_events": 168,
+      "provider_calls": 0,
+      "allocated": 89,
+      "unserved": 12
+    }
+  ]
+}
