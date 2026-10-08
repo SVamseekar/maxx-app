@@ -129,9 +129,12 @@ state is restored; the unrelated system Postgres was untouched.
 
 ## Checkpoint and provider handoff
 
-Checkpoint commit is recorded after creation below. It includes reviewed source,
-tests, lockfiles, migration, synthetic assets, deployment preparation and evidence;
-secrets, caches and local databases are excluded.
+Implementation checkpoint: **`b4371f3a8760cacd8682bb755fd5925436322cbe`**
+(`Checkpoint reviewed Nebius core implementation`), local `main`, 119 changed files.
+It includes reviewed source, tests, lockfiles, migration, synthetic assets,
+deployment preparation and evidence; secrets, caches and local databases are
+excluded. A subsequent documentation-only commit records this exact checkpoint
+ID and handoff. No remote is configured and nothing was pushed.
 
 Both Nebius and Tavily keys are currently absent (presence checked without printing
 values). Resume **Session 2** in `next-chat-sessions.md`, using the sole executable

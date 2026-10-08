@@ -21,8 +21,9 @@ judge success/no-deal and fixture transparency were rechecked. The minor watchin
 room stale-totals issue after another client's leave is recorded for Session 4;
 server persistence is correct. These results do not verify providers or hosted behavior.
 
-The reviewed implementation is checkpointed locally on `main`; exact commit and
-remaining gaps are recorded in `checkpoint-review.md`. Secrets, caches and local
+The reviewed implementation is checkpointed locally on `main` at
+`b4371f3a8760cacd8682bb755fd5925436322cbe`; review details and remaining gaps are
+recorded in `checkpoint-review.md`. Secrets, caches and local
 databases are excluded. Review-created services were stopped and database files
 retained. The parent planning folder is not a Git repository; `maxx/` is the
 application repository. Nothing was pushed, published or sent to paid providers;
