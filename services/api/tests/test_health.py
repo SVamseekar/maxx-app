@@ -43,3 +43,13 @@ def test_readiness_without_database_does_not_leak_credentials():
         assert "secret" not in response.text
     finally:
         app.dependency_overrides.clear()
+
+
+def test_the_example_environment_file_loads(monkeypatch):
+    from maxx.config import ROOT, Settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    loaded = Settings(_env_file=ROOT / ".env.example")
+    assert loaded.demo_tools is None and loaded.docs_enabled is None
+    assert loaded.tracking_mode == "simulator" and loaded.verify_mode == "simulator"

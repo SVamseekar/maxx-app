@@ -151,6 +151,8 @@ class BlocStore:
         ).order_by(t.id)
         if status:
             query = query.where(t.status == status)
+        # A seller tour Bloc is a private demo: reachable by its link, never listed.
+        query = query.where(~t.product_key.startswith("demo-tour:"))
         with self.engine.connect() as db:
             rows = [dict(r._mapping) for r in db.execute(query)]
         for row in rows:

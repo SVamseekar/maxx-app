@@ -214,7 +214,10 @@ def test_the_seller_tour_shows_a_judge_the_whole_seller_side(runtime, tour_on): 
         demo = sellers.by_code(profile["code"])
         assert demo["payout_email"] == settings.paypal_seller_receiver
         # Demo buyers are not accounts and never get mail.
-        assert all(o["buyer_id"].startswith("demo-buyer-") for o in orders.orders_in(["DELIVERED"]))
+        delivered = orders.orders_in(["DELIVERED"])
+        assert all(o["buyer_id"].startswith("demo-buyer-") for o in delivered)
+        # Postgres enforces the 36-character user id columns that SQLite ignores.
+        assert all(len(o["buyer_id"]) <= 36 for o in delivered)
 
 
 def test_the_tour_is_refused_outside_the_demo_setup(runtime, monkeypatch):  # noqa: F811
@@ -237,3 +240,79 @@ def test_a_real_seller_cannot_be_turned_into_a_demo_seller(runtime, tour_on):  #
         onboard(client)
         refused = client.post("/demo/seller-tour")
         assert refused.status_code == 409 and "real seller" in refused.json()["detail"]
+
+
+def test_a_tour_bloc_is_private_and_closed_to_real_buyers(runtime, tour_on):  # noqa: F811
+    with TestClient(app) as judge, TestClient(app) as buyer:
+        sign_up(judge, "judge@example.com", "Jude")
+        sign_up(buyer, "buyer@example.com", "Bea")
+        # Hold the negotiation back so the Bloc is still open when the buyer tries.
+        start = runtime.start
+        runtime.start = lambda bloc_id: asyncio.sleep(0)
+        try:
+            bloc_id = judge.post("/demo/seller-tour").json()["bloc_id"]
+        finally:
+            runtime.start = start
+        assert bloc_id not in {b["id"] for b in buyer.get("/blocs").json()}
+        assert buyer.get(f"/blocs/{bloc_id}").status_code == 200  # the link still works
+        refused = buyer.post(f"/money/blocs/{bloc_id}/hold", json={"max_price": "120"})
+        assert refused.status_code == 409 and "seller tour" in refused.json()["detail"]
+
+
+def test_a_tour_that_fails_to_start_is_ended_and_its_offer_paused(
+    runtime,  # noqa: F811
+    tour_on,
+    monkeypatch,
+):
+    real = money.authorize_hold
+    calls = []
+
+    async def flaky(store, buyer, order_id):
+        calls.append(order_id)
+        if len(calls) == 2:
+            raise RuntimeError("provider went away")
+        return await real(store, buyer, order_id)
+
+    monkeypatch.setattr(money, "authorize_hold", flaky)
+    with TestClient(app, raise_server_exceptions=False) as judge:
+        sign_up(judge, "judge@example.com", "Jude")
+        assert judge.post("/demo/seller-tour").status_code == 500
+        seller = sellers.by_user(judge.get("/auth/me").json()["user"]["id"])
+        offers = sellers.offers_for(seller["id"])
+        assert len(offers) == 1 and not offers[0]["active"]
+        bloc = next(b for b in runtime.store.list() if b.product_key == offers[0]["product_key"])
+        assert bloc.status == "FAILED"
+        assert all(m.status != "HELD" for m in bloc.members)
+
+
+def test_demo_and_real_sellers_never_cross(runtime, tour_on):  # noqa: F811
+    with TestClient(app) as judge, TestClient(app) as seller:
+        sign_up(judge, "judge@example.com", "Jude")
+        sign_up(seller, "seller@example.com", "Sam")
+        onboard(seller)
+        start = runtime.start
+        runtime.start = lambda bloc_id: asyncio.sleep(0)
+        try:
+            bloc_id = judge.post("/demo/seller-tour").json()["bloc_id"]
+        finally:
+            runtime.start = start
+        tour_bloc = runtime.store.get(bloc_id)
+        assert bloc_id not in {o["bloc_id"] for o in seller.get("/seller/opportunities").json()}
+        offer = {
+            "product_key": tour_bloc.product_key,
+            "stock": 2,
+            "floor": "60",
+            "opening_price": "90",
+            "strategy": "balanced",
+        }
+        assert seller.post("/seller/offers", json=offer).status_code == 404
+        # The demo seller cannot sell outside its tour.
+        refused = judge.post("/seller/offers", json={**offer, "product_key": "demo-success"})
+        assert refused.status_code == 409 and "tour" in refused.json()["detail"]
+        real = runtime.store.get("demo-success")
+        demo = sellers.by_user(judge.get("/auth/me").json()["user"]["id"])
+        sellers.upsert_offer(
+            demo["id"], real.product_key, real.title, 2, Decimal("1"), Decimal("2"), "balanced"
+        )
+        sellers.attach(real)
+        assert demo["code"] not in {s.id for s in real.sellers}

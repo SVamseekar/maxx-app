@@ -58,7 +58,7 @@ export default function OrdersTab({ orders, overview, reload }: { orders: Seller
         {order.address && <address className="ship-to"><MapPin size={14} aria-hidden="true" /><span><strong>{order.address.name}</strong><br />{order.address.line1}{order.address.line2 && <><br />{order.address.line2}</>}<br />{order.address.city}{order.address.region && `, ${order.address.region}`} {order.address.postal}<br />{countryName(order.address.country)}{order.address.phone && <><br />{order.address.phone}</>}</span></address>}
         <ShipForm order={order} overview={overview} onDone={reload} /></>}
       {(order.status === "SHIPPED" || order.status === "DELIVERED") && <>
-        <p className="order-note"><Truck size={15} aria-hidden="true" /> {order.carrier}, tracking <code>{order.tracking}</code>.{order.case_id && <strong> The buyer opened a problem. See Problems.</strong>}</p>
+        <p className="order-note"><Truck size={15} aria-hidden="true" /> {order.carrier}, tracking <code>{order.tracking}</code>{order.case_id && <strong>. The buyer opened a problem. See Problems.</strong>}</p>
         {order.review_flag && <p className="order-note warn"><CircleAlert size={15} aria-hidden="true" /> {order.review_flag} The payout is on hold while Maxx reviews it.</p>}
         <TrackingTimeline events={order.tracking_events} status={order.tracking_status} estimated={order.estimated_delivery} simulated={overview.tracking_mode === "simulator"} />
         <PayoutLine order={order} /></>}

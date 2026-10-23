@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -185,6 +185,12 @@ class Settings(BaseSettings):
     scan_rate_anonymous_per_hour: int = Field(default=30, ge=1)
     scan_rate_user_per_hour: int = Field(default=120, ge=1)
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
+
+    @field_validator("demo_tools", "docs_enabled", mode="before")
+    @classmethod
+    def _blank_is_default(cls, value):
+        # Left empty (as in .env.example) means "decide by environment".
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 settings = Settings()

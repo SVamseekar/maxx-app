@@ -255,6 +255,8 @@ def attach(bloc: Bloc) -> int:
         data = row._mapping
         if data["code"] in taken or Decimal(data["floor"]) > Decimal(bloc.typical_price) * 2:
             continue
+        if bool(data["demo"]) != (bloc.origin == "demo_tour"):
+            continue  # demo sellers sell only in their own tour; real sellers never in one
         if not lifecycle.can_sell(by_code(data["code"])):
             continue  # a compliance deadline or re-certification is overdue
         concession, style = STRATEGIES[data["strategy"]]

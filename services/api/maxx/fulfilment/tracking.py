@@ -232,7 +232,7 @@ async def register(carrier: str, number: str, destination_country: str) -> str |
         raise TrackingError("The tracking provider is unreachable.") from exc
     if response.status_code not in {200, 201}:
         raise TrackingError(f"The tracking provider refused the number ({response.status_code}).")
-    return str(response.json().get("id") or "") or None
+    return str(response.json().get("id") or "")[:80] or None
 
 
 async def fetch(tracker_id: str) -> TrackerState:

@@ -181,6 +181,9 @@ def main():
         report["status"] = "unverified"
         report["reason"] = "Evaluation incomplete; check modes, API and server-side credentials."
         report["error_type"] = type(exc).__name__
+        if isinstance(exc, subprocess.CalledProcessError):
+            lines = (exc.stderr or exc.stdout or "").strip().splitlines()
+            report["detail"] = lines[-1][:300] if lines else ""
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n")
     summary = {

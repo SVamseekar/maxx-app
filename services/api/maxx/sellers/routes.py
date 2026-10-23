@@ -262,6 +262,8 @@ def _active_seller(user) -> dict:
 
 def _selling_seller(user) -> dict:
     seller = _active_seller(user)
+    if seller["demo"]:
+        raise HTTPException(409, "A demo seller takes part only in its own seller tour.")
     if not lifecycle.can_sell(seller):
         raise HTTPException(
             409, "Confirm your seller details (and tax id, if asked) to publish offers again."
@@ -531,7 +533,7 @@ def opportunities(user: CurrentUser, runtime: RuntimeDep):
     now = int(time.time())
     seen: dict[str, dict] = {}
     for bloc in runtime.store.list_open():
-        if bloc.closes_at and bloc.closes_at <= now:
+        if bloc.origin == "demo_tour" or (bloc.closes_at and bloc.closes_at <= now):
             continue
         demand = _demand(bloc)
         if demand["buyers"] == 0:
@@ -564,7 +566,7 @@ def save_offer(body: OfferIn, user: CurrentUser, runtime: RuntimeDep):
     if body.opening_price < body.floor:
         raise HTTPException(422, "Your opening price must be at or above your floor.")
     known = runtime.store.find_by_product(body.product_key)
-    if known is None:
+    if known is None or known.origin == "demo_tour":
         raise HTTPException(404, "No Bloc exists for that product yet. Publish a listing instead.")
     if body.floor > known.typical_price * 2:
         raise HTTPException(422, "That floor is far above the product's typical price.")

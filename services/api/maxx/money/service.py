@@ -72,6 +72,8 @@ async def start_hold(bloc: Bloc, user_id: str, max_price: Decimal, test_case: st
         raise _fail("New holds are paused for maintenance. Nothing was charged. Try again later.")
     if max_price > Decimal(settings.hold_max_amount):
         raise _fail(f"A single hold is limited to ${settings.hold_max_amount}.")
+    if bloc.origin == "demo_tour" and not user_id.startswith("demo-buyer-"):
+        raise _fail("This Bloc belongs to a seller tour demo and is not open to buyers.")
     _check_limits(user_id, max_price)
     from maxx.sellers import store as seller_store
 

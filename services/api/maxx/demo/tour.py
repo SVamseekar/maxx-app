@@ -112,7 +112,7 @@ async def start(runtime, user) -> dict:
             1,
         )
     runtime.store.create(bloc)
-    store.upsert_offer(
+    offer = store.upsert_offer(
         seller["id"],
         bloc.product_key,
         PRODUCT,
@@ -123,16 +123,32 @@ async def start(runtime, user) -> dict:
         "ai",
         "I would rather sell all three units this week than hold out for a higher price.",
     )
-    simulator = get_simulator()
-    for maximum in BUYER_MAXIMUMS:
-        buyer = f"demo-buyer-{uuid.uuid4()}"
-        current = runtime.store.get(bloc_id)
-        payment = await money.start_hold(current, buyer, maximum)
-        simulator.approve(payment["order_id"])
-        await money.authorize_hold(runtime.store, buyer, payment["order_id"])
-    await runtime.start(bloc_id)
+    try:
+        simulator = get_simulator()
+        for maximum in BUYER_MAXIMUMS:
+            buyer = f"demo-buyer-{uuid.uuid4().hex[:25]}"  # fits the 36-character user id columns
+            current = runtime.store.get(bloc_id)
+            payment = await money.start_hold(current, buyer, maximum)
+            simulator.approve(payment["order_id"])
+            await money.authorize_hold(runtime.store, buyer, payment["order_id"])
+        await runtime.start(bloc_id)
+    except Exception:
+        # Never leave a half-built demo open: end it so the settlement worker releases any hold.
+        await _abandon(runtime, bloc_id, seller["id"], offer["id"])
+        raise
     audit.record(f"seller:{seller['code']}", "demo.tour_started", bloc_id)
     return {"bloc_id": bloc_id, "seller_code": seller["code"]}
+
+
+async def _abandon(runtime, bloc_id: str, seller_id: str, offer_id: str) -> None:
+    from maxx.negotiate.runner import terminal_failure
+
+    store.set_active(seller_id, offer_id, False)
+    async with runtime.lock:
+        bloc = runtime.store.get(bloc_id)
+        if bloc.status in {"FORMING", "OPEN"}:
+            terminal_failure(bloc, "The seller tour could not start.")
+            runtime.store.save(bloc)
 
 
 def act_for_demo_buyers() -> int:
