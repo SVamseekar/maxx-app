@@ -83,6 +83,9 @@ services:
     dockerContext: .
     autoDeployTrigger: off
     envVars:
+      # Use the API's private-network address (http://<api-host>:<port>), not its public URL. The API
+      # takes the last X-Forwarded-For entry as the client; through the public URL that entry would be
+      # this web service's own address, and every visitor would share one rate-limit allowance.
       - key: API_BASE_URL
         sync: false
       # Read by Next.js for the Content-Security-Policy and HSTS.

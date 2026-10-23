@@ -48,11 +48,17 @@ NO_STORE_PREFIXES = (
 API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
 
 
+def forwarded_client(forwarded: str) -> str:
+    """The rightmost X-Forwarded-For entry: the one our nearest proxy appended. Clients can write
+    any entries to the left of it, so trusting the leftmost lets them pick their own address."""
+    return forwarded.split(",")[-1].strip()[:64]
+
+
 def client_ip(headers: dict[bytes, bytes], peer: tuple | None) -> str:
     if settings.trust_proxy_headers:
-        forwarded = headers.get(b"x-forwarded-for", b"").decode("latin-1").split(",")[0].strip()
+        forwarded = forwarded_client(headers.get(b"x-forwarded-for", b"").decode("latin-1"))
         if forwarded:
-            return forwarded[:64]
+            return forwarded
     return peer[0] if peer else "unknown"
 
 

@@ -444,19 +444,27 @@ async def stream_bloc(
     # Each stream polls the database, so connections are capped per address and per Bloc.
     slot = hardening.streams.slot(client_ip(request), id)
     slot.__enter__()
-
-    async def guarded():
-        try:
-            async for frame in event_frames(runtime.store, id, cursor):
-                yield frame
-        finally:
-            slot.__exit__(None, None, None)
-
-    return StreamingResponse(
-        guarded(),
+    return _SlotStream(
+        slot,
+        event_frames(runtime.store, id, cursor),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
+
+
+class _SlotStream(StreamingResponse):
+    """Frees the connection slot however the response ends. A `finally` inside the generator is not
+    enough: if the client leaves before the first frame, the generator never starts and never cleans up."""
+
+    def __init__(self, slot, content, **kwargs):
+        super().__init__(content, **kwargs)
+        self.slot = slot
+
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self.slot.__exit__(None, None, None)
 
 
 @router.post("/demo/reset", response_model=list[BlocView])

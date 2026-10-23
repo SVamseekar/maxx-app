@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clientAddress } from "./forwarded";
 export { safeLocation } from "./safe-url";
 
 /** Server-only helpers for forwarding browser requests to the FastAPI service with the session. */
@@ -8,15 +9,12 @@ export const apiBase = () => (process.env.API_BASE_URL ?? "http://127.0.0.1:8000
 export function forwardHeaders(request: Request, extra: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
   // Fetch Metadata is forwarded so the API can refuse requests that did not start on our own site.
-  for (const name of ["cookie", "origin", "referer", "user-agent", "x-forwarded-for", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest"]) {
+  for (const name of ["cookie", "origin", "referer", "user-agent", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest"]) {
     const value = request.headers.get(name);
     if (value) headers[name] = value;
   }
-  // Behind a platform proxy the browser's address arrives in x-forwarded-for; keep only that.
-  if (!headers["x-forwarded-for"]) {
-    const real = request.headers.get("x-real-ip");
-    if (real) headers["x-forwarded-for"] = real;
-  }
+  const address = clientAddress(request.headers);
+  if (address) headers["x-forwarded-for"] = address;
   return headers;
 }
 

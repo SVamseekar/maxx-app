@@ -663,6 +663,22 @@ def test_scan_allowance_is_enforced_per_address(monkeypatch):
         assert [send(), send(), send()] == [422, 422, 429]
 
 
+def test_forged_forwarded_for_does_not_open_new_allowances(monkeypatch):
+    monkeypatch.setattr(settings, "scan_rate_anonymous_per_hour", 2)
+    with TestClient(app) as client:
+
+        def send(forged):
+            # The browser controls the leftmost entries; the proxy appends the real address last.
+            posted = client.post(
+                "/scan",
+                content=b"not-an-image",
+                headers={"content-type": "image/png", "x-forwarded-for": f"{forged}, 203.0.113.9"},
+            )
+            return posted.status_code
+
+        assert [send("1.1.1.1"), send("2.2.2.2"), send("3.3.3.3")] == [422, 422, 429]
+
+
 def test_live_streams_are_capped_per_address(monkeypatch):
     from fastapi import HTTPException
 
@@ -678,6 +694,28 @@ def test_live_streams_are_capped_per_address(monkeypatch):
             pass  # a different address is unaffected
     with hardening.streams.slot("1.2.3.4", "demo-success"):
         pass  # and the slot frees on exit
+
+
+def test_stream_slot_frees_when_the_client_leaves_before_the_first_event(runtime, monkeypatch):
+    import asyncio
+
+    from maxx import hardening
+
+    from maxx.negotiate import routes
+
+    monkeypatch.setattr(settings, "stream_connections_per_ip", 1)
+    request = type("Req", (), {"headers": {}, "client": type("C", (), {"host": "9.9.9.9"})()})()
+    response = asyncio.run(routes.stream_bloc("demo-success", request, runtime, 0))
+
+    async def gone(message):
+        raise OSError("client disconnected")
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    with pytest.raises(Exception):  # Starlette reports the failed send as ClientDisconnect
+        asyncio.run(response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, gone))
+    assert "9.9.9.9" not in hardening.streams.by_ip
 
 
 def test_delete_account_releases_commitments_and_removes_the_login(runtime):
