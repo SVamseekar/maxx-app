@@ -4,11 +4,12 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, CircleHelp, FlaskConical, Moon, Sun, X, ScanLine, Users, Store, Menu } from "lucide-react";
+import { Check, ChevronDown, CircleHelp, FlaskConical, Moon, Sun, X, ScanLine, Users, Store, Menu, Sparkles } from "lucide-react";
 
 export { MotionProvider } from "./motion-system";
 import { useMotionPreferences } from "./motion-system";
 import AccountMenu from "./account-menu";
+import NotificationBell from "./notification-bell";
 import { moneyLabel, useMoneyConfig } from "../lib/money";
 import { useAuth } from "./auth";
 import { loginPath } from "../lib/auth-helpers";
@@ -37,14 +38,14 @@ export function AppHeader() {
     document.documentElement.dataset.theme = next ? "light" : "dark";
     try { localStorage.setItem("maxx-theme", next ? "light" : "dark"); } catch { /* Storage is optional. */ }
   }
-  const links = [{ href: "/blocs", label: "Blocs", icon: Users, match: ["/blocs"] }, { href: "/scan", label: "Scan", icon: ScanLine, match: ["/scan"] }, { href: "/for-sellers", label: "Sell", icon: Store, match: ["/for-sellers", "/sell"] }, { href: "/how-it-works", label: "How it works", icon: CircleHelp, match: ["/how-it-works", "/trust", "/pricing", "/faq"] }, { href: "/judge", label: "Demo lab", icon: FlaskConical, match: ["/judge"] }];
+  const links = [{ href: "/blocs", label: "Blocs", icon: Users, match: ["/blocs"] }, { href: "/scan", label: "Scan", icon: ScanLine, match: ["/scan"] }, { href: "/for-sellers", label: "Sell", icon: Store, match: ["/for-sellers", "/sell"] }, { href: "/features", label: "Features", icon: Sparkles, match: ["/features"] }, { href: "/how-it-works", label: "How it works", icon: CircleHelp, match: ["/how-it-works", "/trust", "/pricing", "/faq"] }, { href: "/judge", label: "Demo lab", icon: FlaskConical, match: ["/judge"] }];
   return <header className="app-header"><div className="nav-inner">
     <Link href="/" className="wordmark" aria-label="Maxx home">maxx<span className="brand-dot" /></Link>
     <nav id="main-navigation" className={menuOpen ? "navigation is-open" : "navigation"} aria-label="Main navigation">{links.map(link => {
       const selected = link.match.some(prefix => pathname === prefix || pathname.startsWith(prefix + "/"));
       return <Link key={link.href} href={link.href} className={selected ? "nav-link active" : "nav-link"} aria-current={selected ? "page" : undefined}>{link.label}{selected && <motion.span className="nav-indicator" layoutId="active-navigation" />}</Link>;
     })}{status === "ready" && !user && pathname !== "/login" && pathname !== "/signup" && <div className="nav-account"><Link className="button" href={loginPath(pathname)}>Sign in</Link><Link className="button primary" href={`/signup?next=${encodeURIComponent(pathname)}`}>Create account</Link></div>}</nav>
-    <div className="nav-tools"><span className="demo-chip"><FlaskConical size={13} aria-hidden="true" /> {moneyLabel(money)}</span><button className="icon-button" onClick={toggleTheme} aria-label={light ? "Use dark theme" : "Use light theme"}>{light ? <Moon size={18} /> : <Sun size={18} />}</button><AccountMenu /><button type="button" className="icon-button mobile-menu-toggle" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
+    <div className="nav-tools"><span className="demo-chip"><FlaskConical size={13} aria-hidden="true" /> {moneyLabel(money)}</span><button className="icon-button" onClick={toggleTheme} aria-label={light ? "Use dark theme" : "Use light theme"}>{light ? <Moon size={18} /> : <Sun size={18} />}</button><NotificationBell /><AccountMenu /><button type="button" className="icon-button mobile-menu-toggle" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button></div>
   </div></header>;
 }
 

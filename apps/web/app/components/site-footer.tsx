@@ -4,11 +4,11 @@ import { ModeNotice } from "./mode-notice";
 
 const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
   { title: "Buy together", links: [
-    { href: "/blocs", label: "Open Blocs" }, { href: "/scan", label: "Scan a screenshot" }, { href: "/how-it-works", label: "How it works" },
+    { href: "/blocs", label: "Open Blocs" }, { href: "/scan", label: "Scan a screenshot" }, { href: "/features#buyers", label: "Features for buyers" }, { href: "/how-it-works", label: "How it works" },
     { href: "/trust", label: "How your money is protected" }, { href: "/pricing", label: "Pricing and fees" }, { href: "/faq", label: "Questions" },
   ] },
   { title: "Sell to groups", links: [
-    { href: "/for-sellers", label: "Why sell on Maxx" }, { href: "/sell", label: "Seller console" }, { href: "/legal/seller-terms", label: "Seller Agreement" },
+    { href: "/for-sellers", label: "Why sell on Maxx" }, { href: "/features#sellers", label: "Features for sellers" }, { href: "/sell", label: "Seller console" }, { href: "/legal/seller-terms", label: "Seller Agreement" },
     { href: "/legal/prohibited", label: "Prohibited items" }, { href: "/pricing#sellers", label: "Seller fees and payouts" },
   ] },
   { title: "Trust and safety", links: [

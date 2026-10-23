@@ -11,6 +11,7 @@ import { usd } from "../blocs/types";
 import { Badge } from "./ui";
 import { FormMessage } from "./auth-ui";
 import AddressForm from "./address-form";
+import TrackingTimeline from "./tracking-timeline";
 
 const TONE = { AWAITING_ADDRESS: "warn", AWAITING_SHIPMENT: "accent", SHIPPED: "accent", DELIVERED: "good", CANCELLED: "neutral", REFUNDED: "neutral" } as const;
 
@@ -42,7 +43,9 @@ export default function OrderCard({ order, addresses, onChange, onAddress }: { o
     </section>}
 
     {order.status === "AWAITING_SHIPMENT" && <p className="order-note"><Truck size={15} aria-hidden="true" /> The seller must ship {deadlineText(order.ship_by)}. If they do not, you are refunded in full. You can cancel any time before it ships.</p>}
-    {order.status === "SHIPPED" && <p className="order-note"><PackageCheck size={15} aria-hidden="true" /> Shipped with {order.carrier || "the seller’s carrier"}. Tracking <code>{order.tracking}</code>. Tell us when it arrives.</p>}
+    {order.simulated && <p className="order-note muted small">Sold by one of the demo’s simulated sellers. An automatic stand-in ships it with simulated tracking; your money moves exactly as with a real seller.</p>}
+    {order.status === "SHIPPED" && <p className="order-note"><PackageCheck size={15} aria-hidden="true" /> Shipped with {order.carrier || "the seller’s carrier"}. Tracking <code>{order.tracking}</code>. {order.tracking_events.length ? "The carrier’s updates are below; it is marked delivered automatically." : "Tell us when it arrives."}</p>}
+    {(order.status === "SHIPPED" || order.status === "DELIVERED") && <TrackingTimeline events={order.tracking_events} status={order.tracking_status} estimated={order.estimated_delivery} simulated={order.tracking_simulated} />}
     {order.status === "DELIVERED" && <p className="order-note"><Check size={15} aria-hidden="true" /> Delivered. You have 60 days from the order to report a problem.</p>}
     {(order.status === "CANCELLED" || order.status === "REFUNDED") && <p className="order-note"><Undo2 size={15} aria-hidden="true" /> Your full payment was refunded to your PayPal.</p>}
 
@@ -53,7 +56,7 @@ export default function OrderCard({ order, addresses, onChange, onAddress }: { o
       <button type="button" className="quiet-button" onClick={() => void showTrader()}><Building2 size={14} aria-hidden="true" /> Seller details <ChevronDown size={13} aria-hidden="true" /></button>
     </div>
 
-    {trader && <dl className="trader-info"><div><dt>Seller</dt><dd>{trader.business_name} ({trader.business_type === "company" ? "company" : "individual"})</dd></div><div><dt>Legal name</dt><dd>{trader.legal_name}</dd></div><div><dt>Address</dt><dd>{trader.address}</dd></div><div><dt>Contact</dt><dd>{trader.support_email} · {trader.phone}</dd></div>{trader.trade_register_no && <div><dt>Register number</dt><dd>{trader.trade_register_no}</dd></div>}{trader.website && <div><dt>Website</dt><dd>{trader.website}</dd></div>}<div><dt>Ships within</dt><dd>{trader.ship_within_days} days</dd></div><div><dt>Returns</dt><dd>{trader.return_days} days · {trader.return_policy}</dd></div><div><dt>Certification</dt><dd>{trader.self_certified ? "The seller certified it sells only lawful, genuine, new goods." : "Not certified"}</dd></div></dl>}
+    {trader && <dl className="trader-info">{trader.simulated && <div><dt>Note</dt><dd>This is a simulated seller in the Maxx demo, not a real business.</dd></div>}<div><dt>Seller</dt><dd>{trader.business_name} ({trader.business_type === "company" ? "company" : "individual"})</dd></div><div><dt>Legal name</dt><dd>{trader.legal_name}</dd></div><div><dt>Address</dt><dd>{trader.address}</dd></div><div><dt>Contact</dt><dd>{trader.support_email} · {trader.phone}</dd></div>{trader.trade_register_no && <div><dt>Register number</dt><dd>{trader.trade_register_no}</dd></div>}{trader.website && <div><dt>Website</dt><dd>{trader.website}</dd></div>}<div><dt>Ships within</dt><dd>{trader.ship_within_days} days</dd></div><div><dt>Returns</dt><dd>{trader.return_days} days · {trader.return_policy}</dd></div><div><dt>Certification</dt><dd>{trader.self_certified ? "The seller certified it sells only lawful, genuine, new goods." : "Not certified"}</dd></div></dl>}
 
     {reporting && !active && <form className="problem-form" onSubmit={event => { event.preventDefault(); void run(() => request(`/api/orders/${order.id}/problem`, { body: { kind, message } }), "Reported. The seller must reply within 24 hours or you are refunded.").then(() => { setReporting(false); setMessage(""); }); }}>
       <label className="select-field">What went wrong?<select value={kind} onChange={event => setKind(event.target.value)}>{Object.entries(CASE_KINDS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>

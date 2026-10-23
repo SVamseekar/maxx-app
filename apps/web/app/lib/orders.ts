@@ -3,10 +3,11 @@ export type CaseMessage = { actor: "buyer" | "seller" | "maxx"; body: string; at
 export type CaseView = { id: string; kind: string; status: string; opened_at: number; respond_by: number; resolution: string; messages: CaseMessage[] };
 export type OrderView = {
   id: string; bloc_id: string; title: string; amount: string; currency: string; status: OrderStatus; ship_by: number; carrier: string; tracking: string;
-  shipped_at: number | null; created_at: number; has_address: boolean; seller: { code: string; name: string }; open_case_id: string | null; cases: CaseView[];
+  shipped_at: number | null; delivered_at: number | null; created_at: number; has_address: boolean; seller: { code: string; name: string }; open_case_id: string | null; cases: CaseView[];
+  simulated: boolean; tracking_status: string; estimated_delivery: number | null; tracking_events: { status: string; message: string; location: string; at: number }[]; tracking_simulated: boolean;
 };
 export type AddressSummary = { id: string; label: string; name: string; line1: string; city: string; postal: string; country: string };
-export type TraderInfo = { code: string; business_name: string; legal_name: string; business_type: string; address: string; phone: string; support_email: string; website: string; trade_register_no: string; ship_within_days: number; return_days: number; return_policy: string; self_certified: boolean };
+export type TraderInfo = { code: string; business_name: string; legal_name: string; business_type: string; address: string; phone: string; support_email: string; website: string; trade_register_no: string; ship_within_days: number; return_days: number; return_policy: string; self_certified: boolean; simulated?: boolean };
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   AWAITING_ADDRESS: "Needs your address", AWAITING_SHIPMENT: "Waiting for the seller to ship", SHIPPED: "Shipped", DELIVERED: "Delivered", CANCELLED: "Cancelled and refunded", REFUNDED: "Refunded",

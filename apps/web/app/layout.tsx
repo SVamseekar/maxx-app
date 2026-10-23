@@ -12,6 +12,7 @@ import VerifyBanner from "./components/verify-banner";
 import SiteFooter from "./components/site-footer";
 import "./auth.css";
 import "./money.css";
+import "./marketplace.css";
 import "./site.css";
 import "./design.css";
 import "./interactions.css";

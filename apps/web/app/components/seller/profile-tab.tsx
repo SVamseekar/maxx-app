@@ -7,12 +7,11 @@ import { countryName } from "../../lib/countries";
 import { usd } from "../../blocs/types";
 import { Field, FormMessage, SubmitButton } from "../auth-ui";
 import { useSecure } from "../reauth";
-import { useAuth } from "../auth";
+import ComplianceCard from "./compliance-card";
 import type { Overview, Profile } from "./types";
 
 export default function ProfileTab({ overview, profile, reload }: { overview: Overview; profile: Profile; reload: () => Promise<void> }) {
   const secure = useSecure();
-  const { user } = useAuth();
   const [form, setForm] = useState({ ship_within_days: profile.ship_within_days, ships_to: profile.ships_to, return_days: profile.return_days, return_policy: profile.return_policy, support_email: profile.support_email, phone: profile.phone, website: profile.website });
   const [newEmail, setNewEmail] = useState("");
   const commit = useAction(), email = useAction();
@@ -20,10 +19,11 @@ export default function ProfileTab({ overview, profile, reload }: { overview: Ov
   return <div className="seller-orders">
     <section className="seller-card" aria-labelledby="acct-h">
       <h3 id="acct-h">Your account</h3>
-      <dl className="trader-info"><div><dt>Seller code</dt><dd>{profile.code}</dd></div><div><dt>Legal name</dt><dd>{profile.legal_name} ({profile.business_type})</dd></div><div><dt>Country</dt><dd>{countryName(profile.country)}</dd></div><div><dt>Payout email</dt><dd>{profile.payout_email}</dd></div><div><dt>Strikes</dt><dd>{profile.strikes} of 3{profile.strikes > 0 && " (missed commitments; three suspend your account)"}</dd></div></dl>
+      <dl className="trader-info"><div><dt>Seller code</dt><dd>{profile.code}</dd></div><div><dt>Legal name</dt><dd>{profile.legal_name} ({profile.business_type})</dd></div><div><dt>Country</dt><dd>{countryName(profile.country)}</dd></div><div><dt>Payout email</dt><dd>{profile.payout_email}</dd></div><div><dt>Strikes</dt><dd>{profile.strikes} of 3{profile.strikes > 0 && " (missed commitments; three suspend your account)"}</dd></div><div><dt>Delivered orders</dt><dd>{profile.deliveries}{profile.trusted ? " · paid at the first carrier scan" : " · paid on delivery"}</dd></div></dl>
       {Number(profile.owed) > 0 && <FormMessage tone="info"><AlertTriangle size={14} aria-hidden="true" /> You owe Maxx {usd(profile.owed)} for refunded orders. It is taken from your next payouts.</FormMessage>}
       <p className="small muted">To change your legal name, country or business type, write to support. Buyers see your trader details after they buy.</p>
     </section>
+    <ComplianceCard profile={profile} reload={reload} />
     <section className="seller-card" aria-labelledby="commit-h">
       <h3 id="commit-h">Shipping, returns and contact</h3>
       {commit.message && <FormMessage tone={commit.message.tone}>{commit.message.text}</FormMessage>}
@@ -44,7 +44,7 @@ export default function ProfileTab({ overview, profile, reload }: { overview: Ov
       {email.message && <FormMessage tone={email.message.tone}>{email.message.text}</FormMessage>}
       <form className="inline-form" onSubmit={event => { event.preventDefault(); void email.run(async () => { await secure(() => request("/api/seller/payout-email", { body: { payout_email: newEmail } })); await reload(); }); }}>
         <Field label="New PayPal email" type="email" value={newEmail} onChange={event => setNewEmail(event.target.value)} required autoComplete="off" />
-        <SubmitButton busy={email.busy} disabled={!newEmail || newEmail === user?.email}>Change and re-verify</SubmitButton>
+        <SubmitButton busy={email.busy} disabled={!newEmail || profile.demo}>Change and re-verify</SubmitButton>
       </form>
     </section>
   </div>;
