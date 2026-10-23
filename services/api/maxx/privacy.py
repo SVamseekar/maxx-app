@@ -15,6 +15,7 @@ from maxx import audit, schema, storage
 from maxx.auth import store as accounts
 from maxx.fulfilment import store as fulfilment
 from maxx.money import ledger
+from maxx.notify import service as notify
 from maxx.sellers import store as sellers
 
 OPEN_ORDER = {"AWAITING_ADDRESS", "AWAITING_SHIPMENT", "SHIPPED"}
@@ -137,6 +138,17 @@ def export(user_id: str) -> dict:
             }
             for o in (sellers.offers_for(seller["id"]) if seller else [])
         ],
+        "seller_verification": {
+            "identity_status": seller["identity_status"],
+            "identity_name": seller["identity_name"],
+            "identity_country": seller["identity_country"],
+            "tax_id_last4": seller["tax_id_last4"],
+            "recertify_by": seller["recertify_by"],
+        }
+        if seller
+        else None,
+        "notifications": notify.inbox(user.id, 500)["items"],
+        "notification_preferences": notify.preferences(user.id),
     }
 
 
@@ -165,7 +177,15 @@ def erase(user_id: str) -> None:
                     schema.seller_offers.c.seller_id == seller["id"]
                 )
             )
+        # The verified name and tax id go; the trader record is kept for its retention period.
         sellers.update_seller(
-            seller["id"], status="CLOSED", payout_verified=False, payout_email="closed"
+            seller["id"],
+            status="CLOSED",
+            payout_verified=False,
+            payout_email="closed",
+            identity_name="",
+            identity_session=None,
+            tax_id_enc=None,
         )
+    notify.delete_for_user(user_id)
     audit.record("system", "account.erased", user_id[:8], "commerce data removed")

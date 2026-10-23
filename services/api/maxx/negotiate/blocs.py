@@ -8,7 +8,7 @@ from maxx.negotiate.contracts import Bloc, Event, Member, Seller, Status
 
 TRANSITIONS = {
     "FORMING": {"OPEN"},
-    "OPEN": {"NEGOTIATING"},
+    "OPEN": {"NEGOTIATING", "FAILED"},  # FAILED from OPEN: an administrator took a listing down
     "NEGOTIATING": {"SETTLED", "FAILED"},
     "SETTLED": set(),
     "FAILED": set(),
@@ -58,8 +58,20 @@ def leave_member(bloc: Bloc, user_id: str):
         emit(bloc, "commitment_released", member_id=member.id, reason="left", simulated=True)
 
 
-def make_bloc(id: str, title: str, typical: Decimal, mode="fixture", scenario="success") -> Bloc:
+def make_bloc(
+    id: str,
+    title: str,
+    typical: Decimal,
+    mode="fixture",
+    scenario="success",
+    personas: int | None = None,
+    origin: str = "demand",
+) -> Bloc:
+    """A new open Bloc. `personas` is how many simulated sellers sit at the table (all eight by
+    default when SIMULATED_SELLERS is on, none when it is off)."""
+    count = (8 if settings.simulated_sellers else 0) if personas is None else personas
     b = Bloc(
+        origin=origin,
         generation=time.time_ns() // 1000,
         closes_at=int(time.time()) + settings.bloc_open_seconds,
         id=id,
@@ -82,7 +94,7 @@ def make_bloc(id: str, title: str, typical: Decimal, mode="fixture", scenario="s
     ]
     if mode == "fixture":
         apply_market(b, fixture_rows(title, typical), "fixture", int(time.time()))
-    for i in range(8):
+    for i in range(min(8, count)):
         b.sellers.append(
             Seller(
                 id=chr(65 + i),

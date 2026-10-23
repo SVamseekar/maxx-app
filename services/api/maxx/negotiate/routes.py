@@ -98,7 +98,9 @@ class Runtime:
                     await adapter.verify()
             else:
                 raise ProviderError("NEGOTIATION_MODE must be fixture or live.")
-            await refresh_market(b, self.mode, adapter.calls)
+            if b.origin == "demand":
+                # A seller's listing or the demo tour has no comparable-price research to refresh.
+                await refresh_market(b, self.mode, adapter.calls)
             b.mode = self.mode
             from maxx.sellers import store as seller_store
 
@@ -126,7 +128,32 @@ class Runtime:
         except Exception:  # noqa: BLE001 - settlement is resumable; never crash the worker
             logging.getLogger(__name__).exception("Settlement for %s failed; will retry.", id)
 
+    async def housekeeping(self):
+        """Work that is not tied to one Bloc: email, compliance and the sanctions list."""
+        from maxx.compliance import sanctions
+        from maxx.notify import service as notify
+        from maxx.sellers import lifecycle
+
+        log = logging.getLogger(__name__)
+        try:
+            await notify.deliver_due()
+        except Exception:  # noqa: BLE001 - retried on the next pass
+            log.exception("Email delivery pass failed; will retry.")
+        if time.time() - getattr(self, "compliance_at", 0) >= 3600:
+            self.compliance_at = time.time()
+            try:
+                age = sanctions.age_seconds()
+                if age is None or age > 86400:
+                    await sanctions.refresh()
+            except Exception:  # noqa: BLE001 - a stale list is reported on the admin page
+                log.warning("Sanctions list refresh failed; will retry in an hour.")
+            try:
+                lifecycle.sweep_compliance()
+            except Exception:  # noqa: BLE001
+                log.exception("Seller compliance sweep failed; will retry.")
+
     async def resume_settlements(self):
+        from maxx.demo import tour
         from maxx.fulfilment import service as fulfilment
         from maxx.money import service
 
@@ -138,6 +165,8 @@ class Runtime:
             self.housekeeping_at = time.time()
             try:
                 await service.release_orphans(self.store)
+                if tour.enabled():
+                    tour.act_for_demo_buyers()
                 await fulfilment.sweep()
             except Exception:  # noqa: BLE001 - retried on the next pass
                 log.exception("Housekeeping failed; will retry.")
@@ -177,6 +206,9 @@ class Runtime:
             self.tasks[id] = task
             task.add_done_callback(lambda done, id=id: self.tasks.pop(id, None))
         await self.resume_settlements()
+        if time.time() - getattr(self, "mail_at", 0) >= 5:
+            self.mail_at = time.time()
+            await self.housekeeping()
         for id in self.store.due_to_close(int(time.time())):
             if not hasattr(self, "close_attempts"):
                 self.close_attempts = {}

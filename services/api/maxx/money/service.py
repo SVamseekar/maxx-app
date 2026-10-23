@@ -351,92 +351,63 @@ async def settle_bloc(store, bloc_id: str) -> dict:
     if bloc.status == "SETTLED":
         from maxx.fulfilment import service as fulfilment
 
+        # Every winner gets an order; each seller (real or simulated) is paid per order, when the
+        # carrier confirms it shipped (see fulfilment). Nothing is paid out at settlement.
         fulfilment.create_orders(bloc)
-    paid = await pay_sellers(pp, bloc) if bloc.status == "SETTLED" else []
-    outcome["payouts"] = paid
-    done = outcome["retry"] == 0 and all(p != "retry" for p in paid)
+    _tell_outcome(bloc)
+    done = outcome["retry"] == 0
     _finish(bloc.id, bloc.generation, "DONE" if done else "PARTIAL", outcome)
     return outcome
 
 
-async def pay_sellers(pp, bloc: Bloc) -> list:
+def _tell_outcome(bloc: Bloc) -> None:
+    """Tell buyers whose hold was released, and real sellers what their offer won."""
+    from maxx.notify.service import notify, safe_text
+
     members = {m.id: m for m in bloc.members}
-    by_seller: dict[str, list[dict]] = {}
+    title = safe_text(bloc.title)
     for payment in ledger.for_bloc(bloc.id, bloc.generation):
         member = members.get(payment["member_id"] or "")
-        if payment["status"] == "CAPTURED" and member and member.seller_id:
-            by_seller.setdefault(member.seller_id, []).append(payment)
-    engine = storage.get_store().engine
-    results = []
-    for seller, payments in sorted(by_seller.items()):
-        gross = sum((Decimal(p["captured_amount"]) for p in payments), Decimal(0))
-        fee = fee_for(gross)
-        batch_id = f"maxx-{bloc.id}-{bloc.generation}-{seller}"
-        stamp = int(time.time())
-        account = next((s for s in bloc.sellers if s.id == seller), None)
-        if account is not None and account.account_id:
-            continue  # real sellers are paid per order, when they ship (see fulfilment)
-        receiver = settings.paypal_seller_receiver
-        row = {
-            "id": str(uuid.uuid4()),
-            "bloc_id": bloc.id,
-            "generation": bloc.generation,
-            "seller_id": seller,
-            "method": "paypal",
-            "gross_amount": gross,
-            "fee_amount": fee,
-            "net_amount": gross - fee,
-            "units": len(payments),
-            "sender_batch_id": batch_id,
-            "paypal_batch_id": None,
-            "receiver": receiver,
-            "status": "PENDING",
-            "tx_hash": None,
-            "simulated": pp.simulated,
-            "created_at": stamp,
-            "updated_at": stamp,
-        }
-        try:
-            with engine.begin() as db:
-                db.execute(schema.payouts.insert().values(**row))
-        except IntegrityError:
-            with engine.connect() as db:
-                row = dict(
-                    db.execute(
-                        select(schema.payouts).where(schema.payouts.c.sender_batch_id == batch_id)
-                    )
-                    .first()
-                    ._mapping
-                )
-            if row["status"] != "PENDING":
-                results.append(row["status"])
-                continue
-        try:
-            batch = await pp.create_payout(
-                batch_id,
-                [
-                    {
-                        "receiver": row["receiver"],
-                        "amount": row["net_amount"],
-                        "sender_item_id": f"{bloc.id[:30]}-{seller}",
-                        "note": f"Maxx group buy: {row['units']} units",
-                    }
-                ],
-            )
-            status, paypal_id = "SENT", batch["batch_id"]
-        except PayPalError as exc:
-            if exc.retryable:
-                results.append("retry")
-                continue
-            status, paypal_id = "FAILED", None
-        with engine.begin() as db:
-            db.execute(
-                update(schema.payouts)
-                .where(schema.payouts.c.sender_batch_id == batch_id)
-                .values(status=status, paypal_batch_id=paypal_id, updated_at=int(time.time()))
-            )
-        results.append(status)
-    return results
+        if (
+            payment["kind"] != "hold"
+            or payment["status"] != "VOIDED"
+            or payment["error"] != "not_allocated"  # released at settlement, not by leaving
+            or member is None
+        ):
+            continue
+        reason = (
+            "No seller met the group's prices, so there was no deal."
+            if bloc.status == "FAILED"
+            else "The deal could not serve every buyer within their maximum, and yours was not "
+            "reached."
+        )
+        notify(
+            payment["user_id"],
+            "bloc.released",
+            f"Your hold for {title} was released",
+            f"{reason} Nothing was charged; PayPal releases the hold.",
+            f"/blocs/{bloc.id}/room",
+            f"released:{payment['id']}",
+        )
+    if bloc.status != "SETTLED" or bloc.outcome is None:
+        return
+    for seller in bloc.sellers:
+        if not seller.account_id:
+            continue
+        units = [a for a in bloc.outcome.allocations if a.seller_id == seller.id]
+        notify(
+            seller.account_id,
+            "seller.bloc_result",
+            f"Your offer won {len(units)} unit{'s' if len(units) != 1 else ''} of {title}"
+            if units
+            else f"Your offer did not win in {title}",
+            "Orders from paying buyers appear in your seller console; ship each one when the "
+            "buyer gives an address."
+            if units
+            else "Other offers were cheaper this time. Your standing offer stays on file.",
+            "/sell",
+            f"bloc-result:{bloc.id}:{bloc.generation}:{seller.id}",
+        )
 
 
 async def release_orphans(store) -> int:

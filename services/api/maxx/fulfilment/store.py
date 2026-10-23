@@ -143,10 +143,17 @@ def create_order(
     amount: Decimal,
     currency: str,
     address_wait_until: int,
+    simulated: bool = False,
 ) -> dict | None:
     """One order per captured payment. A second call for the same payment returns None."""
     stamp = int(time.time())
     values = {
+        "simulated": simulated,
+        "carrier_code": "",
+        "tracker_id": None,
+        "tracking_status": "",
+        "tracking_detail": "",
+        "review_flag": "",
         "id": str(uuid.uuid4()),
         "payment_id": payment_id,
         "bloc_id": bloc_id,

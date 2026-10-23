@@ -36,6 +36,16 @@ def pytest_collection_modifyitems(items):
         item.add_marker(pytest.mark.unit if unit else pytest.mark.integration)
 
 
+# A few real OFAC SDN rows (public domain, US Treasury) and an alias, in the published CSV shape.
+SANCTIONS_SDN = (
+    '306,"BANCO NACIONAL DE CUBA",-0- ,"CUBA",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- \n'
+    '36,"AEROCARIBBEAN AIRLINES",-0- ,"CUBA",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- \n'
+    '7140,"KARMOOSH, Muwafaq Mustafa Mohammed Ali","individual","IRAQ2",-0- ,-0- ,-0- ,-0- '
+    ",-0- ,-0- ,-0- ,-0- \n"
+)
+SANCTIONS_ALT = '306,220,"aka","NATIONAL BANK OF CUBA",-0- \n'
+
+
 @pytest.fixture(autouse=True)
 def isolate_application_store(tmp_path, monkeypatch):
     from maxx import storage
@@ -53,6 +63,17 @@ def isolate_application_store(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "pyusd_rpc_url", "")
     monkeypatch.setattr(settings, "pyusd_contract", "")
     monkeypatch.setattr(settings, "pyusd_deposit_address", "")
+    # Carrier tracking, identity checks and the demo tour are opted into by the tests that need
+    # them; by default a seller is live once their payout email is confirmed.
+    monkeypatch.setattr(settings, "tracking_mode", "off")
+    monkeypatch.setattr(settings, "verify_mode", "off")
+    monkeypatch.setattr(settings, "seller_identity_required", False)
+    monkeypatch.setattr(settings, "demo_tools", False)
+    monkeypatch.setattr(settings, "email_mode", "log")
+    from maxx.compliance import sanctions
+
+    sanctions.load(SANCTIONS_SDN, SANCTIONS_ALT, "test")
+    sanctions._index.loaded_at = None
     # Accounts: each test starts with an empty limiter and mailbox and cheap password hashing.
     from maxx.auth import mail, oauth, ratelimit, security
 

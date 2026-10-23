@@ -75,7 +75,11 @@ def allowed_content_types(path: str) -> tuple[str, ...]:
 
 
 def body_limit(path: str) -> int:
-    return MAX_UPLOAD + 4096 if path == "/scan" else settings.max_body_bytes
+    if path == "/scan":
+        return MAX_UPLOAD + 4096
+    if path in {"/webhooks/tracking", "/webhooks/identity"}:
+        return 256 * 1024  # provider events carry a whole tracker or session
+    return settings.max_body_bytes
 
 
 class RequestTooLarge(Exception):
@@ -246,8 +250,26 @@ def configuration_problems() -> list[str]:
         problems.append(
             "PAYPAL_BASE_URL must be PayPal's sandbox; live payments are not supported."
         )
+    if settings.tracking_mode not in {"off", "simulator", "easypost"}:
+        problems.append("TRACKING_MODE must be off, simulator or easypost.")
+    if settings.tracking_mode == "easypost" and not settings.easypost_api_key:
+        problems.append("TRACKING_MODE=easypost needs EASYPOST_API_KEY.")
+    if settings.verify_mode not in {"off", "simulator", "stripe"}:
+        problems.append("VERIFY_MODE must be off, simulator or stripe.")
+    if settings.verify_mode == "stripe" and not (
+        settings.stripe_secret_key and settings.stripe_webhook_secret
+    ):
+        problems.append("VERIFY_MODE=stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.")
+    if settings.verify_mode == "off" and settings.seller_identity_required:
+        problems.append("SELLER_IDENTITY_REQUIRED needs VERIFY_MODE simulator or stripe.")
     if settings.environment != "production":
         return problems
+    if settings.tracking_mode == "easypost" and not settings.easypost_webhook_secret:
+        problems.append("EASYPOST_WEBHOOK_SECRET is required so tracking webhooks are signed.")
+    if settings.demo_tools and settings.paypal_mode != "simulator":
+        problems.append(
+            "DEMO_TOOLS creates demo sellers and buyers; it needs PAYPAL_MODE=simulator."
+        )
     if settings.seller_review != "manual":
         problems.append("SELLER_REVIEW must be manual in production; sellers need approval.")
     if settings.paypal_mode == "sandbox" and not settings.paypal_webhook_id:
@@ -302,6 +324,10 @@ class SecretFilter(logging.Filter):
             settings.secret_key,
             settings.turnstile_secret,
             settings.simulator_webhook_secret,
+            settings.easypost_api_key,
+            settings.easypost_webhook_secret,
+            settings.stripe_secret_key,
+            settings.stripe_webhook_secret,
         ):
             if secret and len(secret) >= 8 and secret in text:
                 text = text.replace(secret, "[redacted]")

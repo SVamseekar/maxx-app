@@ -248,6 +248,13 @@ payouts = Table(
     Column("created_at", BigInteger, nullable=False),
     Column("updated_at", BigInteger, nullable=False),
     Column("order_id", String(36), nullable=True, index=True),
+    # A batch being accepted is not the money arriving: PayPal settles each item separately, and an
+    # item can still be unclaimed, returned or blocked. These follow the item to its end.
+    Column("payout_item_id", String(64), nullable=True),
+    Column("item_status", String(20), nullable=False, default=""),
+    Column("attempt", Integer, nullable=False, default=1),
+    Column("failure_reason", String(120), nullable=False, default=""),
+    Column("item_checked_at", BigInteger, nullable=True),
 )
 settlements = Table(
     "settlements",
@@ -326,6 +333,25 @@ sellers = Table(
     Column("reviewed_at", BigInteger, nullable=True),
     Column("reviewed_by", String(36), nullable=True),
     Column("strikes", Integer, nullable=False, default=0),
+    # Identity check by a verification provider. Only the outcome, the verified name and the
+    # document country are kept; documents and selfies stay with the provider.
+    Column("identity_status", String(20), nullable=False, default="none"),
+    Column("identity_session", String(80), nullable=True),
+    Column("identity_name", String(160), nullable=False, default=""),
+    Column("identity_country", String(2), nullable=False, default=""),
+    Column("identity_checked_at", BigInteger, nullable=True),
+    # Sanctions screening against the OFAC lists: clear | review | blocked.
+    Column("screening_status", String(10), nullable=False, default="clear"),
+    Column("screening_hits", Text, nullable=False, default="[]"),
+    Column("screened_at", BigInteger, nullable=True),
+    # US INFORM Consumers Act: high-volume sellers give a tax id and re-certify every year.
+    Column("tax_id_enc", Text, nullable=True),
+    Column("tax_id_last4", String(4), nullable=False, default=""),
+    Column("high_volume_since", BigInteger, nullable=True),
+    Column("info_due_by", BigInteger, nullable=True),
+    Column("recertify_by", BigInteger, nullable=True),
+    # A judge's demo seller: simulator money only, never paid for real.
+    Column("demo", Boolean, nullable=False, default=False),
 )
 seller_offers = Table(
     "seller_offers",
@@ -341,6 +367,14 @@ seller_offers = Table(
     Column("active", Boolean, nullable=False, default=True),
     Column("created_at", BigInteger, nullable=False),
     Column("updated_at", BigInteger, nullable=False),
+    # rules: a fixed concession per round. ai: a language-model agent inside the same hard limits.
+    Column("agent", String(10), nullable=False, default="rules"),
+    Column("guidance", String(280), nullable=False, default=""),
+    # A listing is an offer the seller published before any buyer asked: it opens its own Bloc.
+    Column("listing", Boolean, nullable=False, default=False),
+    Column("gtin", String(14), nullable=False, default=""),
+    Column("category", String(40), nullable=False, default=""),
+    Column("typical_price", Numeric(12, 2), nullable=True),
 )
 Index(
     "ux_seller_offer_product", seller_offers.c.seller_id, seller_offers.c.product_key, unique=True
@@ -382,6 +416,29 @@ orders = Table(
     Column("address_country", String(2), nullable=False, default=""),
     Column("created_at", BigInteger, nullable=False),
     Column("updated_at", BigInteger, nullable=False),
+    # Won from one of the clearly labelled simulated sellers: an automatic stand-in ships it.
+    Column("simulated", Boolean, nullable=False, default=False),
+    # Carrier tracking, as the carrier (through the tracking provider) reports it.
+    Column("carrier_code", String(30), nullable=False, default=""),
+    Column("tracker_id", String(80), nullable=True, index=True),
+    Column("tracking_status", String(30), nullable=False, default=""),
+    Column("tracking_detail", String(60), nullable=False, default=""),
+    Column("tracking_checked_at", BigInteger, nullable=True),
+    Column("first_scan_at", BigInteger, nullable=True),
+    Column("estimated_delivery", BigInteger, nullable=True),
+    # Why a payout is on hold for a person to look at (for example a reused tracking number).
+    Column("review_flag", String(120), nullable=False, default=""),
+)
+Index("ix_orders_tracking", orders.c.carrier_code, orders.c.tracking)
+tracking_events = Table(
+    "tracking_events",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("order_id", String(36), nullable=False, index=True),
+    Column("status", String(30), nullable=False),
+    Column("message", String(200), nullable=False, default=""),
+    Column("location", String(120), nullable=False, default=""),
+    Column("at", BigInteger, nullable=False),
 )
 cases = Table(
     "cases",
@@ -435,4 +492,46 @@ system_flags = Table(
     Column("key", String(40), primary_key=True),
     Column("value", String(200), nullable=False),
     Column("updated_at", BigInteger, nullable=False),
+)
+
+# Notifications. Every row is an in-app message; its email is delivered from here by the worker
+# (a transactional outbox), so a mail outage delays a message instead of losing it.
+notifications = Table(
+    "notifications",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("user_id", String(36), nullable=False, index=True),
+    Column("kind", String(40), nullable=False),
+    Column("title", String(160), nullable=False),
+    Column("body", String(600), nullable=False, default=""),
+    Column("link", String(300), nullable=False, default=""),
+    Column("created_at", BigInteger, nullable=False),
+    Column("read_at", BigInteger, nullable=True),
+    Column("email_status", String(10), nullable=False, default="QUEUED"),
+    Column("email_attempts", Integer, nullable=False, default=0),
+    Column("email_next_at", BigInteger, nullable=False, default=0),
+    Column("email_error", String(120), nullable=False, default=""),
+    # Makes "send this once" (for example one reminder per deadline) an atomic fact.
+    Column("dedupe_key", String(160), nullable=True, unique=True),
+)
+Index("ix_notifications_email", notifications.c.email_status, notifications.c.email_next_at)
+notification_prefs = Table(
+    "notification_prefs",
+    metadata,
+    Column("user_id", String(36), primary_key=True),
+    Column("kind", String(40), primary_key=True),
+    Column("email", Boolean, nullable=False),
+    Column("updated_at", BigInteger, nullable=False),
+)
+
+# OFAC sanctions list entries (primary names and aliases), refreshed from the public files.
+sanctions_entries = Table(
+    "sanctions_entries",
+    metadata,
+    Column("id", String(40), primary_key=True),
+    Column("entry_id", String(20), nullable=False, index=True),
+    Column("name", String(400), nullable=False),
+    Column("normalized", String(400), nullable=False),
+    Column("kind", String(20), nullable=False, default=""),
+    Column("program", String(200), nullable=False, default=""),
 )

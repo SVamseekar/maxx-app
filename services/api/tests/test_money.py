@@ -137,7 +137,7 @@ def test_leaving_voids_the_hold(runtime):
         assert client.get("/money/receipts").json()[0]["status"] == "VOIDED"
 
 
-def test_cleared_bloc_captures_only_the_winning_price_and_pays_sellers(runtime):
+def test_cleared_bloc_captures_only_the_winning_price_and_holds_it_for_shipping(runtime):
     with TestClient(app) as client:
         sign_up(client)
         order_id = hold(client)
@@ -153,13 +153,10 @@ def test_cleared_bloc_captures_only_the_winning_price_and_pays_sellers(runtime):
         assert Decimal(payment["captured_amount"]) == mine.final_price
         assert Decimal(payment["captured_amount"]) <= Decimal(payment["max_amount"])
         assert payment["capture_id"].startswith("SIM-CAP-")
-        # Books tie out: everything captured is either platform fee or a seller payout.
+        # Books tie out: the captured money is held until the seller ships; nothing is paid yet.
         assert books["settlement"] == "DONE" and books["reconciled"] is True
-        fee = Decimal(books["platform_fee"])
-        assert fee == (mine.final_price * Decimal(settings.platform_fee_percent) / 100).quantize(
-            Decimal("0.01")
-        )
-        assert Decimal(books["captured_total"]) == fee + Decimal(books["seller_payouts"])
+        assert books["held_for_shipping"] == books["captured_total"]
+        assert Decimal(books["platform_fee"]) == 0 and Decimal(books["seller_payouts"]) == 0
         receipt = client.get("/money/receipts").json()[0]
         assert receipt["status"] == "CAPTURED" and Decimal(receipt["saved"]) >= 0
 
@@ -438,7 +435,7 @@ def test_a_paypal_outage_during_settlement_resumes_without_double_capture(runtim
         assert client.get("/money/blocs/demo-success/ledger").json()["settlement"] == "DONE"
         # A third pass finds nothing left to do.
         assert asyncio.run(service.settle_bloc(runtime.store, "demo-success")) == {}
-        assert len(service.payout_rows("demo-success")) == 1
+        assert service.payout_rows("demo-success") == []  # sellers are paid per shipped order
 
 
 def test_a_demo_reset_releases_holds_for_the_replaced_bloc(runtime):

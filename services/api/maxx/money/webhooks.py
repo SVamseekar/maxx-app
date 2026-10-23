@@ -54,6 +54,18 @@ def _apply(event_type: str, resource: dict) -> str:
                 )
             return f"subscription {status.lower()}" if done.rowcount else "unknown subscription"
         return "ignored"
+    if event_type.startswith("PAYMENT.PAYOUTS-ITEM."):
+        # The item, not the batch, says whether the seller actually received the money.
+        from maxx.fulfilment import service as fulfilment
+
+        item = {
+            "payout_item_id": resource_id,
+            "sender_item_id": str((resource.get("payout_item") or {}).get("sender_item_id", "")),
+            "status": str(resource.get("transaction_status", "")),
+            "error": str((resource.get("errors") or {}).get("name", "")),
+        }
+        batch = str(resource.get("payout_batch_id", ""))
+        return fulfilment.apply_payout_item(batch, item)
     if event_type.startswith("PAYMENT.PAYOUTSBATCH."):
         batch = resource.get("batch_header", {}).get("payout_batch_id", resource_id)
         status = "SENT" if event_type.endswith("SUCCESS") else "FAILED"

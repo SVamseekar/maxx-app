@@ -124,7 +124,7 @@ def test_admin_can_settle_a_dispute_and_the_overview_shows_health(runtime, admin
         )
         market.seller.post(
             f"/seller/orders/{market.order['id']}/ship",
-            json={"carrier": "UPS", "tracking": "TRACK12345"},
+            json={"carrier": "ups", "tracking": "1Z999AA10123456784"},
         )
         case = market.buyer.post(
             f"/orders/{market.order['id']}/problem",

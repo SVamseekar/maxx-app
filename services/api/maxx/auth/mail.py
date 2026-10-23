@@ -29,7 +29,13 @@ def _send_smtp(message: EmailMessage) -> None:
         smtp.send_message(message)
 
 
-async def send(to: str, subject: str, text: str) -> None:
+class DeliveryError(Exception):
+    """The mail server did not accept the message."""
+
+
+async def deliver(to: str, subject: str, text: str) -> None:
+    """Send one message, raising DeliveryError if the mail server refuses it. The notification
+    outbox uses this so it can retry; sign-in mail uses `send`, which never reveals a failure."""
     outbox.append({"to": to, "subject": subject, "text": text})
     del outbox[:-50]
     if settings.email_mode == "smtp" and settings.smtp_host:
@@ -38,12 +44,19 @@ async def send(to: str, subject: str, text: str) -> None:
         message.set_content(text)
         try:
             await asyncio.to_thread(_send_smtp, message)
-        except (OSError, smtplib.SMTPException):
-            # Delivery failure must not reveal whether the account exists.
-            log.warning("Email delivery failed for a %s message.", subject)
+        except (OSError, smtplib.SMTPException) as exc:
+            raise DeliveryError(type(exc).__name__) from exc
         return
     # Local development: the full message, including its single-use link, goes to the log only.
     log.info("EMAIL (log mode) to=%s subject=%s\n%s", to, subject, text)
+
+
+async def send(to: str, subject: str, text: str) -> None:
+    try:
+        await deliver(to, subject, text)
+    except DeliveryError:
+        # Delivery failure must not reveal whether the account exists.
+        log.warning("Email delivery failed for a %s message.", subject)
 
 
 def link(path: str, token: str) -> str:

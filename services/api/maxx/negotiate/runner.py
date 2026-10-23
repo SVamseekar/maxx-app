@@ -4,7 +4,15 @@ import asyncio
 from decimal import Decimal
 
 from maxx.config import settings
-from maxx.negotiate.adapters import Adapter, Plan, reserve_ceiling, safe_offer, seller_context
+from maxx.negotiate.adapters import (
+    Adapter,
+    Plan,
+    guard_ai_bid,
+    reserve_ceiling,
+    rules_bid,
+    safe_offer,
+    seller_context,
+)
 from maxx.negotiate.blocs import emit, transition
 from maxx.negotiate.contracts import Bloc, Clearing
 from maxx.negotiate.engine import clear
@@ -39,6 +47,7 @@ async def run_negotiation(
     )
     feedback = {}
     withdrawn = set()
+    last_price: dict[str, Decimal] = {}
     previous = {"served": 0, "unserved": sum(m.status == "HELD" for m in bloc.members)}
 
     def persist():
@@ -106,17 +115,37 @@ async def run_negotiation(
                     seller, current_round=round, current_feedback=feedback, current_plan=plan
                 ):
                     try:
-                        private = seller_context(
-                            seller,
-                            bloc.title,
-                            current_round,
-                            demand,
-                            current_feedback.get(seller.id, {}),
-                            current_plan.messages.get(seller.id),
-                        )
-                        offer, clamped = safe_offer(
-                            seller, await retry("seller", lambda: adapter.seller(private))
-                        )
+                        if seller.account_id and seller.agent == "rules":
+                            # A real seller who chose fixed rules never has a model bid for them.
+                            offer, clamped = safe_offer(seller, rules_bid(seller, current_round))
+                        else:
+                            private = seller_context(
+                                seller,
+                                bloc.title,
+                                current_round,
+                                demand,
+                                current_feedback.get(seller.id, {}),
+                                current_plan.messages.get(seller.id),
+                                last_price.get(seller.id),
+                            )
+                            bid = await retry("seller", lambda: adapter.seller(private))
+                            if seller.account_id:
+                                offer, applied = guard_ai_bid(
+                                    seller, bid, last_price.get(seller.id)
+                                )
+                                clamped = bool(applied)
+                                if applied:
+                                    emit(
+                                        bloc,
+                                        "agent_limited",
+                                        round=current_round,
+                                        seller=seller.id,
+                                        limits=applied,
+                                    )
+                            else:
+                                offer, clamped = safe_offer(seller, bid)
+                        if offer is not None:
+                            last_price[seller.id] = offer.price
                         if offer is None:
                             withdrawn.add(seller.id)
                             emit(bloc, "seller_withdrew", round=current_round, seller=seller.id)

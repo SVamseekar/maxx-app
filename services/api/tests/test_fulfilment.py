@@ -76,7 +76,7 @@ def market(runtime):
 def ship(m, order_id=None, tracking="1Z999AA10123456784"):
     return m.seller.post(
         f"/seller/orders/{order_id or m.order['id']}/ship",
-        json={"carrier": "UPS", "tracking": tracking},
+        json={"carrier": "ups", "tracking": tracking},
     )
 
 
@@ -153,7 +153,7 @@ def test_only_the_selling_account_can_ship_and_only_the_buyer_can_change_the_add
         assert (
             stranger.post(
                 f"/seller/orders/{market.order['id']}/ship",
-                json={"carrier": "UPS", "tracking": "ABC123456"},
+                json={"carrier": "ups", "tracking": "1Z12345E6605272234"},
             ).status_code
             == 404
         )
@@ -165,7 +165,7 @@ def test_only_the_selling_account_can_ship_and_only_the_buyer_can_change_the_add
         )
         assert stranger.get(f"/orders/{market.order['id']}").status_code == 404
     bad = market.seller.post(
-        f"/seller/orders/{market.order['id']}/ship", json={"carrier": "UPS", "tracking": "!!"}
+        f"/seller/orders/{market.order['id']}/ship", json={"carrier": "ups", "tracking": "!!"}
     )
     assert bad.status_code == 422
 
@@ -265,7 +265,7 @@ def test_what_a_seller_owes_is_taken_from_the_next_payout(market, runtime):
         sign_up(second, "buyer2@example.com", "Cy Buyer")
         order2 = market.run("demo-flaky", second)
         second.post(f"/orders/{order2['id']}/address", json={"address_id": market.address(second)})
-        assert ship(market, order2["id"], "TRACK00002").status_code == 200
+        assert ship(market, order2["id"], "1Z12345E6605272234").status_code == 200
     payout = payout_for(order2["id"])
     assert payout["status"] == "OFFSET" and Decimal(payout["net_amount"]) == 0
     assert orders.owed_by(market.code) == Decimal("0.00")
@@ -404,12 +404,34 @@ def test_addresses_are_encrypted_owned_and_deletable(market):
     assert market.buyer.post("/addresses", json={**ADDRESS, "phone": "ring me"}).status_code == 422
 
 
-def test_a_simulated_seller_still_pays_out_immediately_as_before(runtime):
+def test_winning_from_a_simulated_seller_completes_like_any_order(runtime, monkeypatch):
+    """The simulated sellers' stand-in ships promptly, so the buyer's journey always ends."""
+    monkeypatch.setattr(settings, "simulated_seller_ship_seconds", 0)
     with TestClient(app) as buyer:
         sign_up(buyer, "buyer@example.com")
         hold_id = buy(buyer)
         buyer.post("/blocs/demo-success/start")
         books = wait_settled(buyer)
-    assert books["reconciled"] is True and books["held_for_shipping"] == "0.00"
-    assert orders.order_for_payment(ledger.by_order(hold_id)["id"]) is None
+        assert books["reconciled"] is True and books["held_for_shipping"] == books["captured_total"]
+        order = orders.order_for_payment(ledger.by_order(hold_id)["id"])
+        assert order["simulated"] and order["status"] == "AWAITING_ADDRESS"
+        view = buyer.get("/orders").json()[0]
+        assert view["simulated"] is True and "(simulated seller)" in view["seller"]["name"]
+        info = buyer.get(f"/sellers/{order['seller_code']}").json()
+        assert info["simulated"] is True and "Not a real business" in info["legal_name"]
+        made = buyer.post("/addresses", json=ADDRESS).json()
+        buyer.post(f"/orders/{order['id']}/address", json={"address_id": made["id"]})
+        asyncio.run(fulfilment.sweep())  # the stand-in ships, with a well-formed UPS number
+        shipped = orders.get_order(order["id"])
+        assert shipped["status"] == "SHIPPED" and shipped["tracking"].startswith("1Z")
+        payout = payout_for(order["id"])
+        assert payout["status"] == "SENT" and payout["receiver"] == settings.paypal_seller_receiver
+        problem = buyer.post(
+            f"/orders/{order['id']}/problem",
+            json={"kind": "not_received", "message": "Nothing has arrived after a week."},
+        )
+        assert problem.status_code == 201
+        asyncio.run(fulfilment.sweep())  # the stand-in answers and refunds at once
+        assert orders.get_order(order["id"])["status"] == "REFUNDED"
+        assert ledger.by_order(hold_id)["status"] == "REFUNDED"
     assert money.payout_rows("demo-success")

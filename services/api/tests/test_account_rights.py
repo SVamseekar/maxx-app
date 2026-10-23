@@ -90,7 +90,7 @@ def test_a_finished_order_lets_the_buyer_leave_and_wipes_their_address(runtime):
         )
         market.seller.post(
             f"/seller/orders/{market.order['id']}/ship",
-            json={"carrier": "UPS", "tracking": "TRACK12345"},
+            json={"carrier": "ups", "tracking": "1Z999AA10123456784"},
         )
         market.buyer.post(f"/orders/{market.order['id']}/delivered")
         assert close(market.buyer).status_code == 204

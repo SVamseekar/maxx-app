@@ -149,4 +149,12 @@ from maxx.admin import routes as admin_routes  # noqa: E402
 from maxx.fulfilment import routes as fulfilment_routes  # noqa: E402
 
 app.include_router(fulfilment_routes.router)
+app.include_router(fulfilment_routes.hooks)
+app.include_router(seller_routes.hooks)
 app.include_router(admin_routes.router)
+
+from maxx.demo import routes as demo_routes  # noqa: E402
+from maxx.notify import routes as notify_routes  # noqa: E402
+
+app.include_router(notify_routes.router)
+app.include_router(demo_routes.router)

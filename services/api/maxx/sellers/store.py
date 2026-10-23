@@ -38,6 +38,22 @@ def by_user(user_id: str) -> dict | None:
         )
 
 
+def by_id(seller_id: str) -> dict | None:
+    with _engine().connect() as db:
+        return _row(
+            db.execute(select(schema.sellers).where(schema.sellers.c.id == seller_id)).first()
+        )
+
+
+def by_identity_session(session_id: str) -> dict | None:
+    with _engine().connect() as db:
+        return _row(
+            db.execute(
+                select(schema.sellers).where(schema.sellers.c.identity_session == session_id)
+            ).first()
+        )
+
+
 def by_code(code: str) -> dict | None:
     with _engine().connect() as db:
         return _row(db.execute(select(schema.sellers).where(schema.sellers.c.code == code)).first())
@@ -109,7 +125,12 @@ def upsert_offer(
     floor: Decimal,
     opening: Decimal,
     strategy: str,
+    agent: str = "rules",
+    guidance: str = "",
+    listing: dict | None = None,
 ) -> dict:
+    """Create or replace the seller's standing offer for a product. `listing` (gtin, category,
+    typical_price) marks an offer the seller published before any buyer asked."""
     stamp = int(time.time())
     with _engine().begin() as db:
         existing = db.execute(
@@ -124,9 +145,18 @@ def upsert_offer(
             "floor": floor,
             "opening_price": opening,
             "strategy": strategy,
+            "agent": agent,
+            "guidance": guidance,
             "active": True,
             "updated_at": stamp,
         }
+        if listing is not None:
+            values.update(
+                listing=True,
+                gtin=listing.get("gtin") or "",
+                category=listing["category"],
+                typical_price=listing["typical_price"],
+            )
         if existing:
             db.execute(
                 update(schema.seller_offers)
@@ -161,12 +191,50 @@ def set_active(seller_id: str, offer_id: str, active: bool) -> bool:
     return done.rowcount == 1
 
 
+def count_listings(seller_id: str) -> int:
+    with _engine().connect() as db:
+        return len(
+            db.execute(
+                select(schema.seller_offers.c.id).where(
+                    schema.seller_offers.c.seller_id == seller_id,
+                    schema.seller_offers.c.listing.is_(True),
+                    schema.seller_offers.c.active.is_(True),
+                )
+            ).all()
+        )
+
+
+def offer_by_id(offer_id: str) -> dict | None:
+    with _engine().connect() as db:
+        return _row(
+            db.execute(
+                select(schema.seller_offers).where(schema.seller_offers.c.id == offer_id)
+            ).first()
+        )
+
+
+def listings() -> list[dict]:
+    with _engine().connect() as db:
+        return [
+            dict(r._mapping)
+            for r in db.execute(
+                select(schema.seller_offers, schema.sellers.c.code, schema.sellers.c.business_name)
+                .join(schema.sellers, schema.sellers.c.id == schema.seller_offers.c.seller_id)
+                .where(schema.seller_offers.c.listing.is_(True))
+                .order_by(schema.seller_offers.c.created_at.desc())
+                .limit(200)
+            )
+        ]
+
+
 def attach(bloc: Bloc) -> int:
     """Add every verified seller with an active standing offer for this product to the Bloc.
 
     Their floor, stock and opening price are theirs. The agent that negotiates for them is bounded
     by the same clamps as every other seller: never below the floor, never beyond stock.
     """
+    from maxx.sellers import lifecycle
+
     s, o = schema.sellers.c, schema.seller_offers.c
     with _engine().connect() as db:
         rows = db.execute(
@@ -187,6 +255,8 @@ def attach(bloc: Bloc) -> int:
         data = row._mapping
         if data["code"] in taken or Decimal(data["floor"]) > Decimal(bloc.typical_price) * 2:
             continue
+        if not lifecycle.can_sell(by_code(data["code"])):
+            continue  # a compliance deadline or re-certification is overdue
         concession, style = STRATEGIES[data["strategy"]]
         bloc.sellers.append(
             Seller(
@@ -197,6 +267,8 @@ def attach(bloc: Bloc) -> int:
                 style=style,
                 account_id=data["user_id"],
                 concession=concession,
+                agent=data["agent"] if data["agent"] in {"rules", "ai"} else "rules",
+                guidance=data["guidance"] or "",
             )
         )
         added += 1

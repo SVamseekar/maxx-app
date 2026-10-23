@@ -53,6 +53,11 @@ class Seller(Contract):
     account_id: str | None = None
     # Per-round price concession for a real seller's auto-negotiating agent, as a fraction.
     concession: Decimal | None = Field(default=None, gt=0, lt=Decimal("0.5"))
+    # How a real seller's offers are made: a fixed concession (rules) or a language-model agent
+    # (ai) whose every bid passes the same hard checks. `guidance` is the seller's own short note
+    # to their agent; it never reaches anyone else.
+    agent: Literal["rules", "ai"] = "rules"
+    guidance: str = Field(default="", max_length=280)
 
 
 class Event(Contract):
@@ -86,6 +91,8 @@ class BlocView(Contract):
     failure_reason: str | None = None
     calls: list[dict] = Field(default_factory=list)
     viewer_is_owner: bool = False
+    # demand: started by buyers. listing: published by a seller. demo_tour: the judge's seller tour.
+    origin: Literal["demand", "listing", "demo_tour"] = "demand"
 
 
 class Bloc(BlocView):

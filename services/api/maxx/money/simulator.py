@@ -25,6 +25,17 @@ def _id(kind: str) -> str:
     return f"SIM-{kind}-{secrets.token_hex(6).upper()}"
 
 
+def _payout_outcome(receiver: str) -> str:
+    """Like PayPal's sandbox, a payout to an address with no account stays unclaimed; these
+    reserved test domains let tests and demos see the failure paths."""
+    domain = receiver.rpartition("@")[2].lower()
+    if domain == "unclaimed.example":
+        return "UNCLAIMED"
+    if domain == "fails.example":
+        return "FAILED"
+    return "SUCCESS"
+
+
 class SimulatedPayPal:
     simulated = True
 
@@ -232,13 +243,47 @@ class SimulatedPayPal:
         def make():
             batch = {
                 "id": _id("PAYOUT"),
-                "items": [{"receiver": i["receiver"], "amount": money(i["amount"])} for i in items],
+                "items": [
+                    {
+                        "payout_item_id": _id("ITEM"),
+                        "sender_item_id": i["sender_item_id"],
+                        "receiver": i["receiver"],
+                        "amount": money(i["amount"]),
+                        "status": _payout_outcome(i["receiver"]),
+                    }
+                    for i in items
+                ],
             }
             self._write(batch["id"], batch)
             return {"batch_id": batch["id"], "status": "SUCCESS"}
 
         # PayPal rejects a reused sender_batch_id within 30 days; replaying our own is a no-op.
         return self._once(f"payout:{sender_batch_id}", make)
+
+    async def get_payout_batch(self, payout_batch_id: str) -> list[dict]:
+        batch = self._read(payout_batch_id)
+        if not batch:
+            raise PayPalError("Payout batch not found.", 404, "INVALID_RESOURCE_ID")
+        return [
+            {
+                "payout_item_id": item.get("payout_item_id", ""),
+                "sender_item_id": item.get("sender_item_id", ""),
+                "status": item.get("status", "SUCCESS"),
+                "error": "RECEIVER_UNREGISTERED" if item.get("status") == "UNCLAIMED" else "",
+            }
+            for item in batch["items"]
+        ]
+
+    async def add_tracking(
+        self, order_id: str, capture_id: str, number: str, carrier: str, request_id: str
+    ) -> None:
+        def make():
+            if not self._read(capture_id):
+                raise PayPalError("Capture not found.", 404, "INVALID_RESOURCE_ID")
+            self._write(f"track:{order_id}:{number}", {"carrier": carrier, "capture": capture_id})
+            return {"ok": True}
+
+        self._once(request_id, make)
 
     async def create_subscription(
         self, plan_id: str, request_id: str, return_url: str, cancel_url: str

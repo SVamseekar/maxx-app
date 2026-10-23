@@ -71,6 +71,46 @@ class Settings(BaseSettings):
     address_retention_days: int = Field(default=90, ge=1, le=730)
     payout_cooldown_hours: int = Field(default=0, ge=0, le=720)
     case_response_hours: int = Field(default=24, ge=1, le=240)
+    # Carrier tracking: off | simulator | easypost. With tracking on, a seller is paid once the
+    # carrier has the parcel (established sellers) or once it is delivered (new sellers).
+    tracking_mode: str = "simulator"
+    easypost_api_key: str = ""
+    easypost_webhook_secret: str = ""
+    easypost_base_url: str = "https://api.easypost.com"
+    tracking_sim_step_seconds: int = Field(default=60, ge=1, le=86400)
+    tracking_poll_minutes: int = Field(default=30, ge=1, le=1440)
+    tracking_no_scan_days: int = Field(default=4, ge=1, le=30)
+    payout_trusted_after_deliveries: int = Field(default=5, ge=0, le=1000)
+    # Identity checks for sellers: off | simulator | stripe (Stripe Identity).
+    verify_mode: str = "simulator"
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_base_url: str = "https://api.stripe.com"
+    seller_identity_required: bool = True
+    # Sanctions screening: names at or above this similarity to an OFAC entry go to a person.
+    sanctions_threshold: float = Field(default=0.9, ge=0.5, le=1.0)
+    sanctions_sdn_url: str = (
+        "https://sanctionslistservice.ofac.treas.gov/api/publicationpreview/exports/sdn.csv"
+    )
+    sanctions_alt_url: str = (
+        "https://sanctionslistservice.ofac.treas.gov/api/publicationpreview/exports/alt.csv"
+    )
+    # US INFORM Consumers Act thresholds (200 sales and $5,000 in a 12-month period).
+    high_volume_sales: int = Field(default=200, ge=1)
+    high_volume_revenue: str = "5000"
+    seller_info_days: int = Field(default=10, ge=1, le=60)
+    # Listings sellers publish before any buyer asks.
+    listing_max_per_seller: int = Field(default=20, ge=1, le=500)
+    # A language-model seller agent may never cut more than this share of its opening price in
+    # one round, whatever it proposes.
+    seller_ai_max_round_drop_percent: str = "15"
+    # The eight personas in every buyer-started Bloc. They are labelled everywhere, and an
+    # automatic stand-in ships what they sell, so a buyer's journey always completes.
+    simulated_sellers: bool = True
+    simulated_seller_ship_seconds: int = Field(default=30, ge=0, le=86400)
+    # The judge's seller tour (/judge): creates a demo seller and demo buyers. Simulator only.
+    demo_tools: bool | None = None  # default: on in development, off in production
+    email_max_attempts: int = Field(default=6, ge=1, le=20)
     # Spending limits and the emergency brake.
     hold_max_amount: str = "1000"
     # Above these amounts the person must have confirmed their identity recently.

@@ -19,6 +19,11 @@ import httpx2 as httpx
 from maxx.config import settings
 
 CENTS = Decimal("0.01")
+# PayPal carrier codes used as-is; any other carrier is sent as OTHER with its name.
+PAYPAL_CARRIERS = {"UPS", "USPS", "FEDEX"}
+# Payout item states after which nothing more will happen to the money.
+PAYOUT_DONE = {"SUCCESS"}
+PAYOUT_FAILED = {"FAILED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED", "DENIED", "CANCELED"}
 
 
 def money(value: Decimal | str) -> str:
@@ -237,6 +242,34 @@ class PayPalClient:
             "batch_id": header.get("payout_batch_id", ""),
             "status": header.get("batch_status", "PENDING"),
         }
+
+    async def get_payout_batch(self, payout_batch_id: str) -> list[dict]:
+        """Each item of a payout batch with its own status (SUCCESS, UNCLAIMED, FAILED, ...)."""
+        batch = await self._call("GET", f"/v1/payments/payouts/{payout_batch_id}")
+        return [
+            {
+                "payout_item_id": str(item.get("payout_item_id", "")),
+                "sender_item_id": str((item.get("payout_item") or {}).get("sender_item_id", "")),
+                "status": str(item.get("transaction_status", "")),
+                "error": str((item.get("errors") or {}).get("name", "")),
+            }
+            for item in batch.get("items") or []
+        ]
+
+    async def add_tracking(
+        self, order_id: str, capture_id: str, number: str, carrier: str, request_id: str
+    ) -> None:
+        """Attach a shipment to the buyer's PayPal order (Orders v2 /track), so PayPal shows it
+        and can use it in a dispute. `carrier` is PayPal's carrier code, or OTHER."""
+        body: dict = {
+            "capture_id": capture_id,
+            "tracking_number": number[:64],
+            "carrier": carrier if carrier in PAYPAL_CARRIERS else "OTHER",
+            "notify_payer": False,
+        }
+        if body["carrier"] == "OTHER":
+            body["carrier_name_other"] = carrier[:64] or "Carrier"
+        await self._call("POST", f"/v2/checkout/orders/{order_id}/track", body, request_id)
 
     async def create_subscription(
         self, plan_id: str, request_id: str, return_url: str, cancel_url: str
