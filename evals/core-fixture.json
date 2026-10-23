@@ -6,14 +6,14 @@
     "screenshots": 5,
     "fields": 25,
     "exact_field_accuracy": 1.0,
-    "p50_ms": 8.29,
+    "p50_ms": 5.69,
     "records": [
       {
         "case": "headphones",
         "mode": "fixture",
         "field_matches": 5,
         "fields": 5,
-        "latency_ms": 36.49,
+        "latency_ms": 46.16,
         "provider_calls": 0
       },
       {
@@ -21,7 +21,7 @@
         "mode": "fixture",
         "field_matches": 5,
         "fields": 5,
-        "latency_ms": 8.29,
+        "latency_ms": 5.48,
         "provider_calls": 0
       },
       {
@@ -29,7 +29,7 @@
         "mode": "fixture",
         "field_matches": 5,
         "fields": 5,
-        "latency_ms": 7.5,
+        "latency_ms": 5.39,
         "provider_calls": 0
       },
       {
@@ -37,7 +37,7 @@
         "mode": "fixture",
         "field_matches": 5,
         "fields": 5,
-        "latency_ms": 18.86,
+        "latency_ms": 10.21,
         "provider_calls": 0
       },
       {
@@ -45,7 +45,7 @@
         "mode": "fixture",
         "field_matches": 5,
         "fields": 5,
-        "latency_ms": 8.01,
+        "latency_ms": 5.69,
         "provider_calls": 0
       }
     ]
@@ -760,7 +760,7 @@
     "violations": []
   },
   "streamed_negotiations": {
-    "reset_ms": 91.24,
+    "reset_ms": 54.82,
     "measurement": "HTTP through Next.js proxy with incrementally consumed SSE",
     "interpretation": "Fixture mode measures local plumbing only; live quality/cost unverified unless separately evaluated.",
     "records": [
@@ -769,8 +769,8 @@
         "mode": "fixture",
         "status": "SETTLED",
         "rounds": 4,
-        "elapsed_ms": 1694.97,
-        "first_event_ms": 116.67,
+        "elapsed_ms": 2124.09,
+        "first_event_ms": 88.61,
         "streamed_events": 671,
         "provider_calls": 0,
         "allocated": 451,
@@ -781,8 +781,8 @@
         "mode": "fixture",
         "status": "FAILED",
         "rounds": 4,
-        "elapsed_ms": 1538.16,
-        "first_event_ms": 48.09,
+        "elapsed_ms": 2065.46,
+        "first_event_ms": 37.23,
         "streamed_events": 171,
         "provider_calls": 0,
         "allocated": 0,
@@ -793,8 +793,8 @@
         "mode": "fixture",
         "status": "SETTLED",
         "rounds": 4,
-        "elapsed_ms": 1516.51,
-        "first_event_ms": 41.73,
+        "elapsed_ms": 2074.24,
+        "first_event_ms": 39.85,
         "streamed_events": 168,
         "provider_calls": 0,
         "allocated": 77,

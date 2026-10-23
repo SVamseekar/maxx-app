@@ -16,9 +16,15 @@ People sign up by emailed link or with Google, Apple, Microsoft or GitHub, secur
 a passkey or authenticator app, and join Blocs as themselves; see
 [accounts and sign-in](docs/accounts.md) and [security](docs/security.md).
 
-Sellers apply, are verified and publish standing offers; winning buyers give a delivery address,
-sellers ship and are paid when they do, and unshipped orders are refunded. Maxx is the marketplace
-platform, not the seller: it does not ship or handle goods. See [marketplace](docs/marketplace.md),
+Sellers apply, confirm their payout email, pass an identity check and OFAC sanctions screening,
+then publish standing offers or list products nobody has asked for yet, negotiated by fixed rules
+or a bounded AI agent. Winning buyers give a delivery address; sellers ship with a tracking number
+that is checked against the carrier's format and followed with the carrier, and are paid when the
+parcel is delivered (at the first scan once trusted). Unshipped orders are refunded, and buyers and
+sellers get in-app and email notifications. Tracking and identity run in labelled simulators until
+EasyPost and Stripe keys are set. Maxx is the marketplace platform, not the seller: it does not
+ship or handle goods. Every feature is listed at `/features`, and `/judge` has a four-minute seller
+tour. See [marketplace](docs/marketplace.md),
 [market and compliance research](docs/market-research.md), [performance](docs/performance.md), and
 the 15 policy pages under `/legal`.
 
@@ -182,7 +188,8 @@ Alternatively scan the sample, follow its Bloc link, use **Find matching product
 and confirm an uncertain exact model/variant before joining. Matching uses 50 demo
 identities; the live adapter uses Nebius embeddings with hard variant exclusions.
 
-With fixture API/web running, `make evaluate` writes `evals/core-fixture.json`.
+With fixture API/web running (`PAYPAL_MODE=off`, the core demo) and an administrator account from `make dev-account` exported as
+`MAXX_EVAL_EMAIL` and `MAXX_EVAL_PASSWORD`, `make evaluate` writes `evals/core-fixture.json`.
 Measured local results: 25/25 replayed fields on five synthetic images; 50/50
 automatic identity matches on 60 synthetic cases, ten requiring confirmation;
 zero invariant violations in 200 random auctions, including 188 partial fills.

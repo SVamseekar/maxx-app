@@ -20,7 +20,7 @@ Live (production) PayPal is refused at start-up. Maxx is a hackathon prototype a
 1. **Join.** The member picks a maximum. The API creates an order with `intent: AUTHORIZE` for that amount. The buyer approves it on PayPal. The API then authorizes the order, which places a hold, and only then adds the member to the Bloc. If the Bloc changed in the meantime, the hold is voided.
 2. **Leave.** The member is marked as left first, then the hold is voided. A PayPal outage can delay the release but can never leave someone committed.
 3. **Clear.** When the negotiation ends, each winner is captured at their own final price with `final_capture: true`, so PayPal releases the rest of the hold. Everyone else is voided. If there is no deal, every hold is voided.
-4. **Pay sellers.** The Maxx fee (`PLATFORM_FEE_PERCENT`, default 5%) is taken from the seller side, so buyers never pay more than the winning price. Simulated demo sellers get one Payouts batch per Bloc straight after capture. **Real sellers are paid per order, when they ship** (see [marketplace](marketplace.md)); unshipped orders are refunded. Buyers pay nothing extra.
+4. **Pay sellers.** The Maxx fee (`PLATFORM_FEE_PERCENT`, default 5%) is taken from the seller side, so buyers never pay more than the winning price. **Every seller, simulated or real, is paid per order** with one Payouts item, when the carrier confirms the parcel: on delivery for new sellers, at the first scan once trusted (see [marketplace](marketplace.md)). Each payout item is followed (webhook or poll) until PayPal reports it `SUCCESS`, `UNCLAIMED`, returned or failed; failed items are retried and the seller is told. Unshipped orders are refunded. Buyers pay nothing extra.
 5. **Reconcile.** `GET /money/blocs/{id}/ledger` shows the books for the Bloc. "Reconciled" means everything captured equals fees plus sent payouts, to the cent.
 
 Safety rules in code, each with a test:
@@ -31,9 +31,9 @@ Safety rules in code, each with a test:
 - Demo members seeded with a Bloc have no real hold and are never charged.
 
 ### Webhooks
-`POST /money/webhooks/paypal` is called by PayPal, not by browsers. It checks the signature (sandbox: PayPal's `verify-webhook-signature` with `PAYPAL_WEBHOOK_ID`; simulator: HMAC with `SIMULATOR_WEBHOOK_SECRET`), stores each event id once, and updates the ledger: capture completed/denied/refunded, authorization voided, payout batch result, subscription activated/cancelled. A redelivered event is acknowledged and ignored. A webhook cannot raise a capture above its hold.
+`POST /money/webhooks/paypal` is called by PayPal, not by browsers. It checks the signature (sandbox: PayPal's `verify-webhook-signature` with `PAYPAL_WEBHOOK_ID`; simulator: HMAC with `SIMULATOR_WEBHOOK_SECRET`), stores each event id once, and updates the ledger: capture completed/denied/refunded, authorization voided, payout batch and payout item results, subscription activated/cancelled. A redelivered event is acknowledged and ignored. A webhook cannot raise a capture above its hold.
 
-Register the URL `https://<your-api-host>/money/webhooks/paypal` in the PayPal developer dashboard for the events `PAYMENT.AUTHORIZATION.VOIDED`, `PAYMENT.CAPTURE.*`, `PAYMENT.PAYOUTSBATCH.*` and `BILLING.SUBSCRIPTION.*`. The Next.js proxy deliberately does not forward this path.
+Register the URL `https://<your-api-host>/money/webhooks/paypal` in the PayPal developer dashboard for the events `PAYMENT.AUTHORIZATION.VOIDED`, `PAYMENT.CAPTURE.*`, `PAYMENT.PAYOUTSBATCH.*`, `PAYMENT.PAYOUTS-ITEM.*` and `BILLING.SUBSCRIPTION.*`. The Next.js proxy deliberately does not forward this path.
 
 ### Agentic checkout ("Let the agent buy it")
 From a scan verdict, the checkout agent proposes the cheapest offer it can verify: the exact item, in stock, with a known delivered price, below the price in the screenshot.
@@ -85,7 +85,7 @@ Add `PAYPAL_NEGATIVE_TESTING=true` to get a "Test a failure" menu in the hold di
 4. Set `PAYPAL_MODE=sandbox` for the web app too: it loosens the page's Content-Security-Policy for `www.sandbox.paypal.com` only in this mode.
 5. Run the join, close and receipts steps above with the sandbox buyer.
 
-First-run things to check (not yet verified here): that the v6 SDK popup opens and returns an approval (`apps/web/app/components/paypal-approval.tsx`), that authorize returns an authorization id, that the partial capture shows the lower amount in the buyer's PayPal activity, and that the payout batch succeeds.
+First-run things to check (not yet verified here): that the v6 SDK popup opens and returns an approval (`apps/web/app/components/paypal-approval.tsx`), that authorize returns an authorization id, that the partial capture shows the lower amount in the buyer's PayPal activity, that a payout item reaches `SUCCESS` (and that a receiver without a PayPal account shows as `UNCLAIMED`), and that the tracking number added with `/v2/checkout/orders/{id}/track` appears on the buyer's order (the carrier codes in `money/paypal.py` `PAYPAL_CARRIERS` follow PayPal's list and need that check).
 
 ## Configuration reference
 

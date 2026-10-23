@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -10,8 +11,12 @@ import httpx2 as httpx
 parser = argparse.ArgumentParser()
 parser.add_argument("--base", default="http://127.0.0.1:3001/api")
 parser.add_argument("--output", default="evals/negotiation-results.json")
-parser.add_argument("--email", help="Existing account (an administrator when ADMIN_EMAILS is set)")
-parser.add_argument("--password", help="Password for --email")
+# Credentials can also come from MAXX_EVAL_EMAIL / MAXX_EVAL_PASSWORD, which keeps the password
+# out of the process list and lets `make evaluate` pass them through.
+parser.add_argument("--email", default=os.environ.get("MAXX_EVAL_EMAIL"),
+                    help="Existing account (an administrator when ADMIN_EMAILS is set)")
+parser.add_argument("--password", default=os.environ.get("MAXX_EVAL_PASSWORD"),
+                    help="Password for --email")
 args = parser.parse_args()
 records = []
 with httpx.Client(timeout=120) as client:
@@ -19,7 +24,10 @@ with httpx.Client(timeout=120) as client:
     # Accounts are created by emailed link, so a script signs in to one made beforehand:
     #   make dev-account EMAIL=eval@example.com PASSWORD='a long passphrase'
     if not args.email:
-        raise SystemExit("Pass --email and --password for an account (see `make dev-account`).")
+        raise SystemExit(
+            "Set MAXX_EVAL_EMAIL and MAXX_EVAL_PASSWORD (or pass --email and --password) for an "
+            "account made with `make dev-account`."
+        )
     credentials = {"email": args.email, "password": args.password or ""}
     client.post(args.base + "/auth/login", json=credentials).raise_for_status()
     reset_started = time.perf_counter()
