@@ -699,8 +699,9 @@ def test_live_streams_are_capped_per_address(monkeypatch):
 def test_stream_slot_frees_when_the_client_leaves_before_the_first_event(runtime, monkeypatch):
     import asyncio
 
-    from maxx import hardening
+    from starlette.requests import ClientDisconnect
 
+    from maxx import hardening
     from maxx.negotiate import routes
 
     monkeypatch.setattr(settings, "stream_connections_per_ip", 1)
@@ -713,7 +714,7 @@ def test_stream_slot_frees_when_the_client_leaves_before_the_first_event(runtime
     async def receive():
         return {"type": "http.disconnect"}
 
-    with pytest.raises(Exception):  # Starlette reports the failed send as ClientDisconnect
+    with pytest.raises(ClientDisconnect):
         asyncio.run(response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, gone))
     assert "9.9.9.9" not in hardening.streams.by_ip
 

@@ -453,8 +453,8 @@ async def stream_bloc(
 
 
 class _SlotStream(StreamingResponse):
-    """Frees the connection slot however the response ends. A `finally` inside the generator is not
-    enough: if the client leaves before the first frame, the generator never starts and never cleans up."""
+    """Frees the connection slot however the response ends. A `finally` inside the generator is
+    not enough: if the client leaves before the first frame, the generator never starts."""
 
     def __init__(self, slot, content, **kwargs):
         super().__init__(content, **kwargs)
