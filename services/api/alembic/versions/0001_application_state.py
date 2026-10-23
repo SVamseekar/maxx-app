@@ -9,9 +9,24 @@ branch_labels = None
 depends_on = None
 
 
+# Later migrations own the account tables, so 0001 stays the original six.
+ORIGINAL = [
+    "bloc_documents",
+    "demand_signals",
+    "negotiation_events",
+    "negotiation_jobs",
+    "price_cache",
+    "model_calls",
+]
+
+
+def _tables():
+    return [metadata.tables[name] for name in ORIGINAL]
+
+
 def upgrade():
-    metadata.create_all(op.get_bind())
+    metadata.create_all(op.get_bind(), tables=_tables(), checkfirst=True)
 
 
 def downgrade():
-    metadata.drop_all(op.get_bind())
+    metadata.drop_all(op.get_bind(), tables=_tables())

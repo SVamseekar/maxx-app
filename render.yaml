@@ -30,6 +30,51 @@ services:
         sync: false
       - key: TAVILY_API_KEY
         sync: false
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: TURNSTILE_SECRET
+        sync: false
+      # Accounts: set PUBLIC_BASE_URL to the maxx-web https address before enabling sign-in.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: EMAIL_MODE
+        value: smtp
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
+        sync: false
+      - key: MICROSOFT_TENANT
+        value: common
+      - key: APPLE_CLIENT_ID
+        sync: false
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
   - type: web
     name: maxx-web
     runtime: docker
@@ -39,4 +84,9 @@ services:
     autoDeployTrigger: off
     envVars:
       - key: API_BASE_URL
+        sync: false
+      # Read by Next.js for the Content-Security-Policy and HSTS.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: TURNSTILE_SITE_KEY
         sync: false

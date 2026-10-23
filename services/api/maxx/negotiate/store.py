@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.exc import IntegrityError
 
 from maxx import schema
+from maxx.config import settings
 from maxx.negotiate.contracts import Bloc, Event
 
 
@@ -19,16 +20,48 @@ class Conflict(Exception):
 
 class BlocStore:
     def __init__(self, url: str, initialize=True):
+        sqlite = url.startswith("sqlite:")
+        pool = (
+            {}
+            if sqlite
+            else {
+                "pool_size": settings.db_pool_size,
+                "max_overflow": settings.db_max_overflow,
+                "pool_recycle": settings.db_pool_recycle,
+            }
+        )
         self.engine = create_engine(
             url,
-            connect_args={"check_same_thread": False}
-            if url.startswith("sqlite:")
-            else {"connect_timeout": 3},
+            connect_args={"check_same_thread": False} if sqlite else {"connect_timeout": 3},
             pool_pre_ping=True,
+            **pool,
         )
         self.table, self.demands, self.jobs = schema.blocs, schema.demands, schema.jobs
         if initialize:
             schema.metadata.create_all(self.engine)
+
+    @staticmethod
+    def _index(bloc: Bloc) -> dict:
+        """The columns kept beside the document. Real accounts only in `participants`."""
+        users = sorted({m.user_id for m in bloc.members if not m.user_id.startswith("seed-")})
+        return {
+            "generation": bloc.generation,
+            "status": bloc.status,
+            "product_key": bloc.product_key[:300],
+            "closes_at": bloc.closes_at or 0,
+            "owner_id": bloc.owner_id,
+            "title": bloc.title[:300],
+            "typical_price": bloc.typical_price,
+            "target_price": bloc.target_price,
+            "mode": bloc.mode,
+            "scenario": bloc.scenario,
+            "buyers": sum(m.status != "LEFT" for m in bloc.members),
+            "committed": sum((m.max_price for m in bloc.members if m.status == "HELD"), 0),
+            "participants": "|" + "|".join(users) + "|" if users else "",
+            "seller_codes": "|" + "|".join(s.id for s in bloc.sellers) + "|"
+            if bloc.sellers
+            else "",
+        }
 
     def _events(self, db, bloc):
         last = (
@@ -60,7 +93,10 @@ class BlocStore:
             with self.engine.begin() as db:
                 db.execute(
                     self.table.insert().values(
-                        id=bloc.id, revision=bloc.revision, document=bloc.model_dump_json()
+                        id=bloc.id,
+                        revision=bloc.revision,
+                        document=bloc.model_dump_json(),
+                        **self._index(bloc),
                     )
                 )
                 self._events(db, bloc)
@@ -81,6 +117,92 @@ class BlocStore:
                 for r in db.execute(select(self.table.c.document).order_by(self.table.c.id))
             ]
 
+    # ---- cheap reads: never parse a document ------------------------------------------------
+
+    def meta(self, id: str) -> dict | None:
+        """Revision, generation and status in one tiny query (polling, ETags, SSE)."""
+        t = self.table.c
+        with self.engine.connect() as db:
+            row = db.execute(select(t.revision, t.generation, t.status).where(t.id == id)).first()
+        return dict(row._mapping) if row else None
+
+    def generations(self) -> dict[str, int]:
+        with self.engine.connect() as db:
+            return {
+                r[0]: r[1] for r in db.execute(select(self.table.c.id, self.table.c.generation))
+            }
+
+    def summaries(self, viewer_id: str | None = None, status: str | None = None) -> list[dict]:
+        t = self.table.c
+        query = select(
+            t.id,
+            t.title,
+            t.status,
+            t.scenario,
+            t.mode,
+            t.target_price,
+            t.typical_price,
+            t.committed,
+            t.buyers,
+            t.closes_at,
+            t.owner_id,
+            t.participants,
+            t.product_key,
+        ).order_by(t.id)
+        if status:
+            query = query.where(t.status == status)
+        with self.engine.connect() as db:
+            rows = [dict(r._mapping) for r in db.execute(query)]
+        for row in rows:
+            row["viewer_is_owner"] = bool(viewer_id and row["owner_id"] == viewer_id)
+            row["viewer_joined"] = bool(viewer_id and f"|{viewer_id}|" in row["participants"])
+            del row["participants"], row["owner_id"]
+        return rows
+
+    def _docs(self, *conditions) -> list[Bloc]:
+        with self.engine.connect() as db:
+            rows = db.execute(
+                select(self.table.c.document).where(*conditions).order_by(self.table.c.id)
+            )
+            return [Bloc.model_validate_json(r[0]) for r in rows]
+
+    def list_by_status(self, statuses: list[str]) -> list[Bloc]:
+        return self._docs(self.table.c.status.in_(statuses))
+
+    def list_open(self) -> list[Bloc]:
+        return self._docs(self.table.c.status == "OPEN")
+
+    def find_by_product(self, product_key: str) -> Bloc | None:
+        found = self._docs(self.table.c.product_key == product_key)
+        return found[0] if found else None
+
+    def list_with_seller(self, code: str) -> list[Bloc]:
+        return self._docs(self.table.c.seller_codes.like(f"%|{code}|%"))
+
+    def list_for_user(self, user_id: str) -> list[Bloc]:
+        t = self.table.c
+        return self._docs((t.owner_id == user_id) | t.participants.like(f"%|{user_id}|%"))
+
+    def due_to_close(self, now: int) -> list[str]:
+        t = self.table.c
+        with self.engine.connect() as db:
+            return list(
+                db.execute(
+                    select(t.id).where(t.status == "OPEN", t.closes_at > 0, t.closes_at <= now)
+                ).scalars()
+            )
+
+    def latest_event(self, id: str, generation: int) -> int:
+        with self.engine.connect() as db:
+            return (
+                db.execute(
+                    select(func.max(schema.events.c.event_id)).where(
+                        schema.events.c.bloc_id == id, schema.events.c.generation == generation
+                    )
+                ).scalar()
+                or 0
+            )
+
     def save(self, bloc: Bloc, queue=False):
         revision = bloc.revision + 1
         document = bloc.model_copy(update={"revision": revision}).model_dump_json()
@@ -88,7 +210,7 @@ class BlocStore:
             result = db.execute(
                 self.table.update()
                 .where(self.table.c.id == bloc.id, self.table.c.revision == bloc.revision)
-                .values(revision=revision, document=document)
+                .values(revision=revision, document=document, **self._index(bloc))
             )
             if result.rowcount != 1:
                 raise Conflict("Bloc changed. Refresh and retry.")
@@ -155,7 +277,10 @@ class BlocStore:
                 db.execute(self.jobs.delete().where(self.jobs.c.bloc_id == bloc.id))
                 db.execute(
                     self.table.insert().values(
-                        id=bloc.id, revision=0, document=bloc.model_dump_json()
+                        id=bloc.id,
+                        revision=0,
+                        document=bloc.model_dump_json(),
+                        **self._index(bloc),
                     )
                 )
                 db.execute(schema.events.delete().where(schema.events.c.bloc_id == bloc.id))

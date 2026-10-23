@@ -10,9 +10,18 @@ import httpx2 as httpx
 parser = argparse.ArgumentParser()
 parser.add_argument("--base", default="http://127.0.0.1:3001/api")
 parser.add_argument("--output", default="evals/negotiation-results.json")
+parser.add_argument("--email", help="Existing account (an administrator when ADMIN_EMAILS is set)")
+parser.add_argument("--password", help="Password for --email")
 args = parser.parse_args()
 records = []
 with httpx.Client(timeout=120) as client:
+    # Joining and resetting need an account. Without --email a throwaway one is created.
+    # Accounts are created by emailed link, so a script signs in to one made beforehand:
+    #   make dev-account EMAIL=eval@example.com PASSWORD='a long passphrase'
+    if not args.email:
+        raise SystemExit("Pass --email and --password for an account (see `make dev-account`).")
+    credentials = {"email": args.email, "password": args.password or ""}
+    client.post(args.base + "/auth/login", json=credentials).raise_for_status()
     reset_started = time.perf_counter()
     response = client.post(args.base + "/demo/reset", json={})
     response.raise_for_status()
@@ -21,7 +30,7 @@ with httpx.Client(timeout=120) as client:
         id = "demo-" + scenario
         client.post(
             f"{args.base}/blocs/{id}/join",
-            json={"user_id": "demo-you", "max_price": "150"},
+            json={"max_price": "150"},
         ).raise_for_status()
         before = client.get(f"{args.base}/blocs/{id}").json()
         cursor = before["events"][-1]["id"]

@@ -2,14 +2,17 @@ import asyncio
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
+from maxx.auth import ratelimit
+from maxx.auth.deps import OptionalUser, client_ip, same_origin
+from maxx.config import settings
 from maxx.flow import run_scan
 from maxx.providers import ProviderError
 from maxx.scan import MAX_UPLOAD, Item, ScanError, ScanResult, validate_image
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(same_origin)])
 
 
 @router.post(
@@ -19,12 +22,18 @@ router = APIRouter()
 )
 async def scan(
     request: Request,
+    user: OptionalUser,
     owns_similar: bool = False,
     title: Annotated[str | None, Query(max_length=300)] = None,
     price: str | None = None,
     merchant: str | None = None,
 ):
     request_id = str(uuid.uuid4())
+    # Scans spend provider credits, so each person (or anonymous address) has an hourly allowance.
+    if user:
+        ratelimit.hit(f"scan:user:{user.id}", settings.scan_rate_user_per_hour, 3600)
+    else:
+        ratelimit.hit(f"scan:ip:{client_ip(request)}", settings.scan_rate_anonymous_per_hour, 3600)
     try:
         data = bytearray()
         async for chunk in request.stream():

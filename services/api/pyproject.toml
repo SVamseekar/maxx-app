@@ -12,6 +12,8 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "pillow>=12,<13",
   "httpx2>=2.13.1,<3",
+  "cryptography>=50,<60",
+  "webauthn>=2.5,<3",
 ]
 
 [dependency-groups]

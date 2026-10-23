@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { forwardHeaders, relayJson } from "../../lib/upstream";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
@@ -27,10 +28,10 @@ export async function POST(request: Request) {
     const base = process.env.API_BASE_URL ?? "http://127.0.0.1:8000";
     const query = new URL(request.url).search;
     const upstream = await fetch(`${base.replace(/\/$/, "")}/scan${query}`, {
-      method: "POST", headers: { "Content-Type": request.headers.get("content-type") ?? "application/octet-stream" },
+      method: "POST", headers: forwardHeaders(request, { "Content-Type": request.headers.get("content-type") ?? "application/octet-stream" }),
       body, cache: "no-store", signal: AbortSignal.timeout(105000),
     });
-    return NextResponse.json(await upstream.json(), { status: upstream.status });
+    return await relayJson(upstream);
   } catch {
     return NextResponse.json({ message: "Cannot complete the scan. Check that the API is running, then retry." }, { status: 503 });
   }

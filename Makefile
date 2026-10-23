@@ -39,3 +39,13 @@ verify-persistence:
 	$(UV) run --locked python -m maxx.verify_persistence
 migrate-legacy:
 	$(UV) run --locked python -m maxx.migrate_legacy
+
+.PHONY: audit dev-account
+# Known-vulnerability scan of every locked dependency (Python and npm). Fails on any finding.
+audit:
+	npm audit --audit-level=low
+	$(UV) export --no-hashes --format requirements-txt > /tmp/maxx-reqs.txt
+	uvx pip-audit -r /tmp/maxx-reqs.txt --no-deps --disable-pip
+# Create or reset a verified development account without email: make dev-account EMAIL=a@b.co PASSWORD='a long passphrase'
+dev-account:
+	$(UV) run --locked python -m maxx.devtools account "$(EMAIL)" "$(PASSWORD)"

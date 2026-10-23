@@ -1,0 +1,128 @@
+/* Control motion: deliberate responses to hover, press, focus and actual state changes.
+   No pointer tracking, timers or background animation; touch targets stay in place. */
+:root {
+  --control-ease: cubic-bezier(.22, 1, .36, 1);
+  --control-settle: 240ms;
+  --control-press: 85ms;
+}
+
+button, a.button, .text-action, summary {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease,
+    box-shadow var(--control-settle) var(--control-ease),
+    transform var(--control-settle) var(--control-ease),
+    outline-offset 180ms var(--control-ease), opacity 180ms ease;
+}
+
+/* A restrained edge catches the light when a primary action is raised. */
+button.primary, a.button.primary {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .12), 0 1px 2px rgb(0 0 0 / .08);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.primary:hover:not(:disabled):not([aria-disabled="true"]),
+  a.button.primary:hover:not([aria-disabled="true"]) {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .2), 0 5px 12px rgb(0 0 0 / .12);
+  }
+  .icon-button:hover:not(:disabled), .field-toggle:hover:not(:disabled),
+  .search-clear:hover:not(:disabled) { transform: scale(1.06); }
+  :is(.button, .text-action, .quiet-button):hover > .lucide-arrow-up-right {
+    transform: translate(2px, -2px);
+  }
+  :is(.button, .text-action, .quiet-button):hover > .lucide-arrow-right {
+    transform: translateX(3px);
+  }
+  .icon-button:hover > :is(.lucide-sun, .lucide-moon) { transform: rotate(24deg); }
+  .account-popover [role="menuitem"]:hover > svg { transform: translateX(2px); }
+}
+
+:is(button, a.button):active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(1px) scale(.98);
+  transition-duration: var(--control-press);
+}
+:is(button.primary, a.button.primary):active:not(:disabled):not([aria-disabled="true"]) {
+  transform: translateY(1px) scale(.98);
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / .15), 0 0 0 transparent;
+}
+.icon-button:active:not(:disabled), .field-toggle:active:not(:disabled),
+.search-clear:active:not(:disabled) { transform: scale(.92); }
+/* Filter/tab selections already have their own moving indicator. */
+:is(.segmented-control, .journey-tabs, .tabs, .money-outcomes) > button:active:not(:disabled) {
+  transform: scale(.985);
+}
+:is(.text-action, .quiet-button, .disclosure-trigger):active:not(:disabled) { transform: none; }
+
+:is(.button, .text-action, .quiet-button, .icon-button, .account-trigger, .account-popover [role="menuitem"]) > svg,
+.field-toggle > svg, .search-clear > svg {
+  transition: transform 280ms var(--control-ease), opacity 160ms ease;
+}
+.account-trigger[aria-expanded="true"] > .lucide-chevron-down { transform: rotate(180deg); }
+
+/* Focus is immediate and visible; the offset settles into place. */
+:is(button, a, summary, input, textarea, select):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.collection-search {
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+.collection-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent), transparent 88%);
+}
+.collection-search > svg { transition: color 180ms ease; }
+.collection-search:focus-within > svg { color: var(--accent); }
+input[type="range"]::-webkit-slider-thumb { transition: box-shadow 180ms ease; }
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent), transparent 80%);
+}
+input[type="range"]::-moz-range-thumb { transition: box-shadow 180ms ease; }
+input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent), transparent 80%);
+}
+
+/* Keep the exact label width during work; never imply success before the response. */
+.auth-submit { position: relative; }
+.submit-content { transition: opacity 160ms ease, transform 240ms var(--control-ease); }
+.submit-progress {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  opacity: 0; transform: scale(.8); pointer-events: none;
+  transition: opacity 160ms ease, transform 240ms var(--control-ease);
+}
+.auth-submit[aria-busy="true"] { opacity: 1; cursor: progress; }
+.auth-submit[aria-busy="true"] .submit-content { opacity: 0; transform: translateY(-4px); }
+.auth-submit[aria-busy="true"] .submit-progress { opacity: 1; transform: scale(1); }
+:is(button, a.button):is(:disabled, [aria-disabled="true"]) { transform: none; box-shadow: none; }
+
+.form-message { display: flex; align-items: flex-start; gap: 9px; animation: feedback-arrive 220ms var(--control-ease) both; }
+.form-message > div { min-width: 0; }
+.feedback-check { margin-top: 2px; animation: feedback-check 280ms var(--control-ease) both; }
+@keyframes feedback-arrive { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes feedback-check { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+
+/* Native dialogs keep focus trapping and Escape. Discrete transitions enhance browsers
+   that support them; other browsers retain their native open/close behavior. */
+.confirm-dialog {
+  opacity: 0; transform: translateY(8px) scale(.98);
+  transition: opacity 180ms ease, transform 240ms var(--control-ease),
+    display 240ms allow-discrete, overlay 240ms allow-discrete;
+}
+.confirm-dialog[open] { opacity: 1; transform: none; }
+.confirm-dialog::backdrop {
+  opacity: 0;
+  transition: opacity 180ms ease, display 240ms allow-discrete, overlay 240ms allow-discrete;
+}
+.confirm-dialog[open]::backdrop { opacity: 1; }
+@starting-style {
+  .confirm-dialog[open] { opacity: 0; transform: translateY(8px) scale(.98); }
+  .confirm-dialog[open]::backdrop { opacity: 0; }
+}
+
+/* A paused interface keeps all feedback colors and focus indicators, without movement. */
+html[data-motion="reduced"] :is(button, a.button, .text-action, .quiet-button, .submit-content, .submit-progress, .confirm-dialog),
+html[data-motion="reduced"] :is(button, a.button, .text-action, .quiet-button, .account-popover [role="menuitem"]) > svg {
+  transform: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(button, a.button, .text-action, .quiet-button, .submit-content, .submit-progress, .confirm-dialog),
+  :is(button, a.button, .text-action, .quiet-button, .account-popover [role="menuitem"]) > svg { transform: none !important; }
+}

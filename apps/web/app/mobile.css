@@ -1,0 +1,76 @@
+/* Phone and small-tablet pass, loaded last. Two rules for every screen up to 800px wide:
+   a tap target is at least 44px, and body text is never below 12px.
+   Verified by scripts that measure every interactive element and every text node. */
+
+@media (max-width: 800px) {
+  /* ---- Tap targets ---- */
+  .app-header .wordmark { display: inline-flex; align-items: center; min-height: 44px; }
+  .nav-tools .icon-button, .nav-tools .account-trigger { width: 44px; height: 44px; min-height: 44px; }
+  .nav-tools { gap: 2px; }
+  .verify-banner .quiet-button, .verify-banner .button.quiet-button { min-height: 44px; padding-inline: 14px; }
+  .verify-banner .icon-button { width: 44px; height: 44px; min-height: 44px; }
+  .section-nav a, .doc-toc .section-nav a { min-height: 44px; }
+  .section-nav { gap: 0 18px; }
+  .text-action, .quiet-button { min-height: 44px; }
+  .collection-meta .text-action { min-height: 44px; font-size: 12px; }
+  .footer-columns a { min-height: 44px; }
+  .footer-base a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 2px; }
+
+  button, [role=button], [role=tab], summary, select, input:not([type=checkbox]):not([type=radio]):not([type=hidden]) { min-height: 44px !important; }
+  .icon-button, button:has(> svg:only-child) { min-width: 44px; }
+  .footer-base a { min-width: 44px; justify-content: center; }
+  .section-nav a { min-width: 44px; padding-inline: 4px; justify-content: center; }
+  .purchase-footnote a, .film-caption a, .seller-fee a, .back-link, .auth-link, .contact-list a, .account-section .text-action, .account-section a:not(.button) {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+  input[type=range] { min-height: 44px; }
+  .source-list a { display: inline-flex; align-items: center; min-height: 44px; }
+  .crumbs a, .checkup-body li > a { display: inline-flex; align-items: center; min-height: 44px; }
+  .table-wrap td a { display: inline-flex; align-items: center; min-height: 44px; }
+
+  /* Captions over photographs stay legible. */
+  .purchase-art::after { content: ""; position: absolute; inset: auto 0 0 0; height: 55%; pointer-events: none; background: linear-gradient(to top, #000000b8, transparent); }
+  .purchase-art figcaption { z-index: 1; }
+
+  .fan-photo > span { bottom: auto; top: 9px; }
+  .scan-photo { width: min(100%, 300px); margin-inline: auto; }
+  .scan-photo .editorial-image { max-width: none; }
+  .scan-photo .editorial-scan-frame { inset: 12% 12% 16%; }
+
+  .seller-editorial > div:first-child { padding: 0; }
+
+  .scan-intro br.desktop-break { display: none; }
+
+  /* ---- Type floor: 12px ---- */
+  .auth-art-credit, .auth-category-picker > button, .auth-benefit > div > p, .auth-mode-note,
+  .footer-columns a, .footer-base, .footer-base > span, .footer-base a, .mode-notice,
+  .purchase-art figcaption > span, .live-purchase-status, .live-purchase > small, .purchase-footnote > span, .purchase-footnote > a,
+  .journey-tabs > button, .journey-index, .journey-category-bar > span, .journey-category-bar > div > button, .fan-photo > span,
+  .group-ticket > div > strong, .group-ticket > div > span, .journey-proof > span, .visual-scan-steps > li > span, .film-caption > span, .film-caption > a, .seller-fee > a,
+  .editorial-image figcaption > span, .badge, .scan-steps > li > span, .stage-caption, .filter-label, .collection-meta > span,
+  .card-price > div > span, .demand-y > span, .demand-x > span, .books dd > small, .chat-tab-count, .chat-connection > span, .chat-tool > span, .chat-tool > strong,
+  .chat-recipients, .chat-bottom > span, .chip, .chip > strong, .chip > span > span, .offer-tag, .floor-line > em, .floor-scale > span, .offer-card > footer, .ladder > em,
+  .range-extents > span, .fee-legend > span, .fee-breakdown > p, .money-outcomes > button, .money-node > span, .money-node > small, .money-path-note, .money-path-note > span,
+  .wizard-steps > li > span, .seller-proof-visual > p {
+    font-size: 12px !important;
+  }
+}
+
+/* Reference tables become labelled cards instead of clipping their second column. */
+@media (max-width: 700px) {
+  .table-wrap:not(.call-table) { overflow: visible; border: 0; background: none; }
+  .table-wrap:not(.call-table) table { min-width: 0; display: block; }
+  .table-wrap:not(.call-table) thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .table-wrap:not(.call-table) tbody, .table-wrap:not(.call-table) tr { display: block; }
+  .table-wrap:not(.call-table) tr { margin-bottom: 10px; padding: 4px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .table-wrap:not(.call-table) tbody th { display: block; width: auto; padding: 12px 0 8px; border: 0; background: none; color: var(--ink); font-size: 14px; }
+  .table-wrap:not(.call-table) td { display: grid; align-items: center; grid-template-columns: minmax(78px, 30%) 1fr; gap: 12px; padding: 10px 0; border: 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .table-wrap:not(.call-table) td::before { content: attr(data-label); color: var(--subtle); font-size: 12px; }
+  .table-wrap:not(.call-table) td:not([data-label]) { grid-template-columns: 1fr; }
+  .table-wrap:not(.call-table) td:not([data-label])::before { content: none; }
+  .table-wrap:not(.call-table) tbody tr:hover { background: var(--panel); }
+}
+
+@media (max-width: 800px) {
+  .chat-final { padding-bottom: 14px; }
+}

@@ -3,11 +3,24 @@
 Maxx will turn shopping screenshots into advice and collective buying power.
 The core demo implements screenshot → comparable prices → deterministic Money Score →
 confirmed product Bloc → maximum-price commitment → streamed negotiation → allocation
-or failed outcome. PayPal and optional features are deferred.
+or failed outcome. With `PAYPAL_MODE=simulator` or `sandbox`, joining places a PayPal hold,
+winners are charged only their winning price, everyone else is released, and sellers are paid
+out; an agent can also check out a cheaper offer, and PYUSD can pay for it. See
+[payments](docs/payments.md) for what is real, what is simulated and how to run it.
 
 Live mode calls Nebius and Tavily from FastAPI; missing keys produce an explicit
 error. Use `SCAN_MODE=fixture make api` to try the supplied synthetic samples with
 clearly labelled replay results. The default is `SCAN_MODE=live`.
+
+People sign up by emailed link or with Google, Apple, Microsoft or GitHub, secure the account with
+a passkey or authenticator app, and join Blocs as themselves; see
+[accounts and sign-in](docs/accounts.md) and [security](docs/security.md).
+
+Sellers apply, are verified and publish standing offers; winning buyers give a delivery address,
+sellers ship and are paid when they do, and unshipped orders are refunded. Maxx is the marketplace
+platform, not the seller: it does not ship or handle goods. See [marketplace](docs/marketplace.md),
+[market and compliance research](docs/market-research.md), [performance](docs/performance.md), and
+the 15 policy pages under `/legal`.
 
 See [your configuration checklist](docs/operator-actions.md),
 [provider verification evidence](docs/provider-verification.md), and

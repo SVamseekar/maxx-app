@@ -9,6 +9,7 @@ from maxx.negotiate.blocs import add_member, make_bloc, transition
 from maxx.negotiate.routes import Runtime, get_runtime
 from maxx.negotiate.store import BlocStore
 from maxx.negotiate.stream import event_frames
+from tests.conftest import sign_up
 
 
 @pytest.fixture
@@ -25,20 +26,12 @@ def test_join_leave_start_outcome_and_redaction(runtime):
         b = client.get("/blocs/demo-success").json()
         assert b["mode"] == "fixture"
         assert "sellers" not in b
-        joined = client.post(
-            "/blocs/demo-success/join", json={"user_id": "demo-you", "max_price": "150"}
-        )
+        assert client.post("/blocs/demo-success/join", json={"max_price": "150"}).status_code == 401
+        sign_up(client)
+        joined = client.post("/blocs/demo-success/join", json={"max_price": "150"})
         assert joined.status_code == 200
-        assert (
-            client.post("/blocs/demo-success/leave", json={"user_id": "demo-you"}).status_code
-            == 200
-        )
-        assert (
-            client.post(
-                "/blocs/demo-success/join", json={"user_id": "demo-you", "max_price": "150"}
-            ).status_code
-            == 200
-        )
+        assert client.post("/blocs/demo-success/leave").status_code == 200
+        assert client.post("/blocs/demo-success/join", json={"max_price": "150"}).status_code == 200
         assert client.post("/blocs/demo-success/start").status_code == 202
         # Background execution is drained on runtime close; snapshot polling is bounded.
         for _ in range(100):
@@ -49,16 +42,15 @@ def test_join_leave_start_outcome_and_redaction(runtime):
 
             time.sleep(0.01)
         assert b["status"] == "SETTLED"
-        you = [m for m in b["members"] if m["user_id"] == "demo-you" and m["status"] != "LEFT"][0]
+        you = [m for m in b["members"] if m["user_id"] == "me" and m["status"] != "LEFT"][0]
         assert you["status"] == "WIN"
         assert Decimal(you["final_price"]) <= Decimal(you["max_price"])
         assert client.post("/blocs/demo-success/start").status_code == 202  # no second auction
-        assert (
-            client.post(
-                "/blocs/demo-success/join", json={"user_id": "late", "max_price": "150"}
-            ).status_code
-            == 409
-        )
+        with TestClient(app) as late:
+            sign_up(late, "late2@example.com")
+            assert (
+                late.post("/blocs/demo-success/join", json={"max_price": "150"}).status_code == 409
+            )
         assert "floor" not in str(b)
 
 
@@ -115,12 +107,15 @@ def test_restart_recovers_interrupted_negotiation_and_reset_preserves_custom(run
     transition(b, "NEGOTIATING")
     runtime.store.save(b)
     with TestClient(app) as client:
+        assert client.post("/demo/reset").status_code == 401
+        sign_up(client)
         assert client.post("/demo/reset").status_code == 409
     runtime.recover()
     assert runtime.store.get(b.id).status == "FAILED"
     custom = make_bloc("custom", "Custom product", Decimal("200"))
     runtime.store.create(custom)
     with TestClient(app) as client:
+        sign_up(client, "second@example.com")
         assert client.post("/demo/reset").status_code == 200
         assert client.get("/blocs/custom").status_code == 200
         assert client.get("/blocs/demo-success").json()["status"] == "OPEN"
@@ -132,6 +127,9 @@ def test_live_mode_never_falls_back_when_key_missing(runtime, monkeypatch):
     monkeypatch.setattr(settings, "nebius_api_key", "")
     runtime.mode = "live"
     with TestClient(app) as client:
+        sign_up(client)
+        assert client.post("/blocs/demo-success/start").status_code == 403  # not a member
+        assert client.post("/blocs/demo-success/join", json={"max_price": "150"}).status_code == 200
         result = client.post("/blocs/demo-success/start")
         assert result.status_code == 503
         assert runtime.store.get("demo-success").status == "OPEN"
@@ -170,6 +168,7 @@ def test_catalogue_match_confirmation_and_demand_persistence(runtime):
 
     app.dependency_overrides[get_matcher] = FixtureMatcher
     with TestClient(app) as client:
+        sign_up(client)
         item = {"title": "Sony headphones"}
         match = client.post("/catalog/match", json=item)
         assert match.status_code == 200
@@ -206,6 +205,7 @@ def test_catalogue_creation_does_not_reuse_expired_open_bloc(runtime, monkeypatc
         "product_key": "sony-wh1000xm5-black",
     }
     with TestClient(app) as client:
+        sign_up(client)
         original = client.post("/blocs", json=body).json()
         expired = runtime.store.get(original["id"])
         expired.closes_at = 1000

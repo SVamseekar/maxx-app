@@ -14,6 +14,16 @@ for (const [url, readiness] of [[`${api}/health`, false], [`${api}/health/ready`
   }
   console.log(`PASS ${url}`, body);
 }
+if (!unavailable) {
+  const providers = await fetch(`${web}/api/auth/providers`, { signal: AbortSignal.timeout(10000) });
+  assert.equal(providers.status, 200, "account service unreachable through the web proxy");
+  assert.equal((await providers.json()).password, true);
+  const me = await fetch(`${web}/api/auth/me`, { signal: AbortSignal.timeout(10000) });
+  assert.deepEqual(await me.json(), { user: null });
+  const blocked = await fetch(`${web}/api/blocs/demo-success/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ max_price: "150" }) });
+  assert.equal(blocked.status, 401, "joining must require an account");
+  console.log("PASS accounts: providers listed, anonymous session empty, join requires sign-in");
+}
 const page = await fetch(web);
 assert.equal(page.status, 200);
 assert.match(await page.text(), /Choose your shopping screenshot/);

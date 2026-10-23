@@ -1,15 +1,19 @@
 import asyncio
+import hashlib
+import json
+import logging
 import time
 import uuid
 from decimal import Decimal
 from threading import Lock
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 
-from maxx import storage
+from maxx import hardening, storage
+from maxx.auth.deps import CodedError, CurrentUser, OptionalUser, client_ip, is_admin, same_origin
 from maxx.config import settings
 from maxx.market import refresh_market
 from maxx.matching import MatchResult, get_matcher
@@ -22,7 +26,7 @@ from maxx.negotiate.stream import event_frames
 from maxx.providers import ProviderError
 from maxx.scan import Item
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(same_origin)])
 
 
 class CreateBloc(Contract):
@@ -33,11 +37,7 @@ class CreateBloc(Contract):
     item: Item | None = None
 
 
-class User(Contract):
-    user_id: str = Field(default="demo-you", min_length=1, max_length=50)
-
-
-class Join(User):
+class Join(Contract):
     max_price: Money
 
 
@@ -76,8 +76,8 @@ class Runtime:
                     pass
 
     def recover(self):
-        for b in self.store.list():
-            if b.status == "NEGOTIATING" and self.store.job_status(b.id) != "QUEUED":
+        for b in self.store.list_by_status(["NEGOTIATING"]):
+            if self.store.job_status(b.id) != "QUEUED":
                 terminal_failure(
                     b, "API restarted during negotiation. All simulated commitments released."
                 )
@@ -100,26 +100,66 @@ class Runtime:
                 raise ProviderError("NEGOTIATION_MODE must be fixture or live.")
             await refresh_market(b, self.mode, adapter.calls)
             b.mode = self.mode
+            from maxx.sellers import store as seller_store
+
+            seller_store.attach(b)  # verified sellers with a standing offer join the table
             transition(b, "NEGOTIATING")
             self.store.save(b, queue=True)
             self.store.claim_job(id)
-            task = asyncio.create_task(
-                run_negotiation(self.store, id, adapter, round_delay=self.delay)
-            )
+            task = asyncio.create_task(self._run(id, adapter))
             self.tasks[id] = task
             task.add_done_callback(lambda done, id=id: self.tasks.pop(id, None))
             return b.public()
+
+    async def _run(self, id, adapter):
+        await run_negotiation(self.store, id, adapter, round_delay=self.delay)
+        await self.settle(id)
+
+    async def settle(self, id):
+        """Capture, void and pay out once a Bloc has finished. tick() retries failures."""
+        from maxx.money import service
+
+        if not service.enabled():
+            return
+        try:
+            await service.settle_bloc(self.store, id)
+        except Exception:  # noqa: BLE001 - settlement is resumable; never crash the worker
+            logging.getLogger(__name__).exception("Settlement for %s failed; will retry.", id)
+
+    async def resume_settlements(self):
+        from maxx.fulfilment import service as fulfilment
+        from maxx.money import service
+
+        if not service.enabled():
+            return
+        log = logging.getLogger(__name__)
+        # Slower housekeeping: orphaned holds, shipping deadlines, payouts, cases, address purges.
+        if time.time() - getattr(self, "housekeeping_at", 0) >= 20:
+            self.housekeeping_at = time.time()
+            try:
+                await service.release_orphans(self.store)
+                await fulfilment.sweep()
+            except Exception:  # noqa: BLE001 - retried on the next pass
+                log.exception("Housekeeping failed; will retry.")
+        for id in service.pending_bloc_ids(self.store):
+            key = "settle-" + id
+            if key in self.tasks:
+                continue
+            try:
+                bloc = self.store.get(id)
+            except KeyError:
+                continue
+            if service.needs_settlement(bloc):
+                task = asyncio.create_task(self.settle(id))
+                self.tasks[key] = task
+                task.add_done_callback(lambda done, key=key: self.tasks.pop(key, None))
 
     async def tick(self):
         import time
 
         # A task can die while the database is unavailable. Release safely once it returns.
-        for b in self.store.list():
-            if (
-                b.status == "NEGOTIATING"
-                and b.id not in self.tasks
-                and self.store.job_status(b.id) == "RUNNING"
-            ):
+        for b in self.store.list_by_status(["NEGOTIATING"]):
+            if b.id not in self.tasks and self.store.job_status(b.id) == "RUNNING":
                 terminal_failure(b, "Negotiation worker interrupted. Commitments released.")
                 self.store.save(b)
 
@@ -133,22 +173,20 @@ class Runtime:
                 self.store.save(b)
                 continue
             adapter = FixtureAdapter() if self.mode == "fixture" else NebiusAdapter(id)
-            task = asyncio.create_task(
-                run_negotiation(self.store, id, adapter, round_delay=self.delay)
-            )
+            task = asyncio.create_task(self._run(id, adapter))
             self.tasks[id] = task
             task.add_done_callback(lambda done, id=id: self.tasks.pop(id, None))
-        for b in self.store.list():
-            if b.status == "OPEN" and b.closes_at and b.closes_at <= int(time.time()):
-                if not hasattr(self, "close_attempts"):
-                    self.close_attempts = {}
-                if time.time() - self.close_attempts.get(b.id, 0) < 60:
-                    continue
-                self.close_attempts[b.id] = time.time()
-                try:
-                    await self.start(b.id)
-                except (ProviderError, ValueError, Conflict):
-                    continue
+        await self.resume_settlements()
+        for id in self.store.due_to_close(int(time.time())):
+            if not hasattr(self, "close_attempts"):
+                self.close_attempts = {}
+            if time.time() - self.close_attempts.get(id, 0) < 60:
+                continue
+            self.close_attempts[id] = time.time()
+            try:
+                await self.start(id)
+            except (ProviderError, ValueError, Conflict):
+                continue
 
     async def close(self):
         tasks = list(self.tasks.values())
@@ -189,13 +227,49 @@ def get_bloc(runtime, id):
         raise HTTPException(404, "Bloc not found.") from None
 
 
-@router.get("/blocs", response_model=list[BlocView])
-def list_blocs(runtime: RuntimeDep):
-    return [b.public() for b in runtime.store.list()]
+list_cache: dict = {}
+list_cache_lock = Lock()
+
+
+class BlocSummary(Contract):
+    id: str
+    title: str
+    product_key: str
+    status: str
+    scenario: str
+    mode: str
+    target_price: Decimal | None
+    typical_price: Decimal
+    committed_total: Decimal
+    buyers: int
+    closes_at: int
+    viewer_is_owner: bool = False
+    viewer_joined: bool = False
+
+
+@router.get("/blocs", response_model=list[BlocSummary])
+def list_blocs(runtime: RuntimeDep, user: OptionalUser):
+    """Light list for browsing: no members, events or market rows. Cached for about a second,
+    which is invisible to people and lets a crowd share one database read."""
+    viewer = user.id if user else None
+    key = (id(runtime.store), viewer)
+    cached = list_cache.get(key)
+    if cached and time.monotonic() - cached[0] < settings.list_cache_seconds:
+        return cached[1]
+    rows = runtime.store.summaries(viewer)
+    for row in rows:
+        row["committed_total"] = row.pop("committed")
+    with list_cache_lock:
+        if len(list_cache) > 512:
+            list_cache.clear()
+        list_cache[key] = (time.monotonic(), rows)
+    return rows
 
 
 @router.post("/blocs", response_model=BlocView, status_code=201)
-async def create_bloc(body: CreateBloc, runtime: RuntimeDep, matcher: MatcherDep):
+async def create_bloc(
+    body: CreateBloc, runtime: RuntimeDep, matcher: MatcherDep, user: CurrentUser
+):
     title = body.title.strip()
     if len(title) < 3:
         raise HTTPException(422, "Enter an exact product title.")
@@ -224,11 +298,12 @@ async def create_bloc(body: CreateBloc, runtime: RuntimeDep, matcher: MatcherDep
                 and existing.status == "OPEN"
                 and (not existing.closes_at or existing.closes_at > int(time.time()))
             ):
-                return existing.public()
+                return existing.public(user.id)
     elif not body.confirmed_variant:
         raise HTTPException(409, "Confirm this custom product and variant.")
     id = str(uuid.uuid4())
     b = make_bloc(id, title, body.typical_price, mode=runtime.mode)
+    b.owner_id = user.id
     if key:
         b.product_key = key
     try:
@@ -237,41 +312,118 @@ async def create_bloc(body: CreateBloc, runtime: RuntimeDep, matcher: MatcherDep
         b.market_mode = "unavailable"
         b.target_price = None
     runtime.store.create(b)
-    return b.public()
+    return b.public(user.id)
+
+
+class ViewCache:
+    """Serialised Bloc views, keyed by revision, so a room that many people watch is built once.
+
+    A Bloc only changes when its revision changes. Most visitors are not members, so they all get
+    the same bytes; members get the same data with their own rows marked "me".
+    """
+
+    def __init__(self, size: int = 64):
+        self.size, self.items, self.lock = size, {}, Lock()
+
+    def get(self, store, id: str, meta: dict, viewer: str | None) -> bytes:
+        key = (id, meta["generation"], meta["revision"])
+        with self.lock:
+            entry = self.items.get(key)
+        if entry is None:
+            bloc = store.get(id)
+            base = bloc.public_base()
+            entry = {
+                "base": base,
+                "json": json.dumps(base).encode(),
+                "owner": bloc.owner_id,
+                "positions": {
+                    u: bloc.viewer_positions(u)
+                    for u in {m.user_id for m in bloc.members}
+                    if not u.startswith("seed-")
+                },
+            }
+            with self.lock:
+                self.items[key] = entry
+                while len(self.items) > self.size:
+                    self.items.pop(next(iter(self.items)))
+        positions = entry["positions"].get(viewer, []) if viewer else []
+        owner = bool(viewer and entry["owner"] == viewer)
+        if not positions and not owner:
+            return entry["json"]
+        value = dict(entry["base"])
+        members = list(value["members"])
+        for i in positions:
+            members[i] = {**members[i], "user_id": "me"}
+        value["members"], value["viewer_is_owner"] = members, owner
+        return json.dumps(value).encode()
+
+
+view_cache = ViewCache()
 
 
 @router.get("/blocs/{id}", response_model=BlocView)
-def read_bloc(id: str, runtime: RuntimeDep):
-    return get_bloc(runtime, id).public()
+def read_bloc(id: str, request: Request, runtime: RuntimeDep, user: OptionalUser):
+    viewer = user.id if user else None
+    meta = runtime.store.meta(id)
+    if meta is None:
+        raise HTTPException(404, "Bloc not found.")
+    # The document only changes with its revision, so an unchanged revision is a cheap 304.
+    # The tag includes the viewer because members are shown differently to each person.
+    tag = hashlib.sha256(f"{meta['generation']}:{meta['revision']}:{viewer}".encode()).hexdigest()[
+        :20
+    ]
+    etag = f'"{tag}"'
+    headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    try:
+        body = view_cache.get(runtime.store, id, meta, viewer)
+    except KeyError:
+        raise HTTPException(404, "Bloc not found.") from None
+    return Response(body, media_type="application/json", headers=headers)
 
 
 @router.post("/blocs/{id}/join", response_model=BlocView)
-def join_bloc(id: str, body: Join, runtime: RuntimeDep):
+def join_bloc(id: str, body: Join, runtime: RuntimeDep, user: CurrentUser):
     b = get_bloc(runtime, id)
+    if settings.paypal_mode in {"simulator", "sandbox"}:
+        # With payments on, joining means placing a PayPal hold first (see /money/blocs/{id}/hold).
+        raise CodedError(402, "Place a PayPal hold to join this Bloc.", "payment_required")
     try:
-        add_member(b, body.user_id, str(body.max_price))
+        add_member(b, user.id, str(body.max_price))
         runtime.store.save(b)
     except (ValueError, Conflict) as exc:
         raise HTTPException(409, str(exc)) from None
-    return b.public()
+    return b.public(user.id)
 
 
 @router.post("/blocs/{id}/leave", response_model=BlocView)
-def leave_bloc(id: str, body: User, runtime: RuntimeDep):
+async def leave_bloc(id: str, runtime: RuntimeDep, user: CurrentUser):
     b = get_bloc(runtime, id)
     try:
-        leave_member(b, body.user_id)
-        runtime.store.save(b)
+        if settings.paypal_mode in {"simulator", "sandbox"}:
+            from maxx.money import service
+
+            await service.leave(runtime.store, b, user.id)
+        else:
+            leave_member(b, user.id)
+            runtime.store.save(b)
     except (ValueError, Conflict) as exc:
         raise HTTPException(409, str(exc)) from None
-    return b.public()
+    return b.public(user.id)
 
 
 @router.post("/blocs/{id}/start", response_model=BlocView, status_code=202)
-async def start_bloc(id: str, runtime: RuntimeDep):
-    get_bloc(runtime, id)
+async def start_bloc(id: str, runtime: RuntimeDep, user: CurrentUser):
+    b = get_bloc(runtime, id)
+    # Only the Bloc's creator or someone who has committed to it may close it.
+    if b.owner_id != user.id and not any(
+        m.user_id == user.id and m.status != "LEFT" for m in b.members
+    ):
+        raise HTTPException(403, "Join this Bloc before closing it.")
     try:
-        return await runtime.start(id)
+        await runtime.start(id)
+        return get_bloc(runtime, id).public(user.id)
     except ProviderError as exc:
         raise HTTPException(503, str(exc)) from None
     except (ValueError, Conflict) as exc:
@@ -289,22 +441,36 @@ async def stream_bloc(
         raise HTTPException(422, "Invalid event cursor.") from None
     if cursor < 0 or cursor > len(b.events):
         raise HTTPException(409, "Event cursor is stale. Reload the room.")
+    # Each stream polls the database, so connections are capped per address and per Bloc.
+    slot = hardening.streams.slot(client_ip(request), id)
+    slot.__enter__()
+
+    async def guarded():
+        try:
+            async for frame in event_frames(runtime.store, id, cursor):
+                yield frame
+        finally:
+            slot.__exit__(None, None, None)
+
     return StreamingResponse(
-        event_frames(runtime.store, id, cursor),
+        guarded(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )
 
 
 @router.post("/demo/reset", response_model=list[BlocView])
-async def reset_demo(runtime: RuntimeDep):
+async def reset_demo(runtime: RuntimeDep, user: CurrentUser):
+    # Reset wipes everyone's seeded-demo participation. When admins are configured, only they may.
+    if settings.admin_emails.strip() and not is_admin(user):
+        raise HTTPException(403, "Only an administrator can reset the shared demo Blocs.")
     async with runtime.lock:
         if any(b.status == "NEGOTIATING" for b in runtime.store.list()):
             raise HTTPException(
                 409, "Wait for active negotiations to finish before resetting demo Blocs."
             )
         runtime.seed(reset=True)
-        return [b.public() for b in runtime.store.list() if b.id.startswith("demo-")]
+        return [b.public(user.id) for b in runtime.store.list() if b.id.startswith("demo-")]
 
 
 @router.post("/catalog/match", response_model=MatchResult)

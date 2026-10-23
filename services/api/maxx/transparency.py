@@ -33,6 +33,7 @@ def transparency():
             "scan": settings.scan_mode,
             "negotiation": settings.negotiation_mode,
             "matching": settings.match_mode,
+            "payments": settings.paypal_mode,
         },
         configured_models={
             role: getattr(settings, "model_" + role)

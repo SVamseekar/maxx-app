@@ -69,6 +69,7 @@ def seller_context(
             "opening_price": str(seller.opening_price),
             "style": seller.style,
             "withdraw_round": seller.withdraw_round,
+            "concession": str(seller.concession) if seller.concession is not None else None,
         },
         "feedback": {k: v for k, v in feedback.items() if k in allowed},
     }
@@ -84,15 +85,13 @@ class FixtureAdapter:
         private = context["private"]
         floor, opening = Decimal(private["floor"]), Decimal(private["opening_price"])
         # Simulated concession policy, not an AI or a market-price prediction.
-        price = max(
-            floor,
-            opening
-            - opening
-            * [Decimal(v) for v in (".06", ".03", ".09", ".04", ".08", ".05", ".07", ".02")][
-                ord(context["seller_id"][0]) % 8
-            ]
-            * context["round"],
+        rates = [Decimal(v) for v in (".06", ".03", ".09", ".04", ".08", ".05", ".07", ".02")]
+        rate = (
+            Decimal(private["concession"])
+            if private.get("concession")
+            else rates[ord(context["seller_id"][0]) % 8]
         )
+        price = max(floor, opening - opening * rate * context["round"])
         return Bid(
             price=price.quantize(Decimal(".01")),
             max_qty=private["stock"],

@@ -49,6 +49,10 @@ class Seller(Contract):
     stock: int = Field(ge=0, le=100000)
     style: str = "Prefer volume without selling below your floor."
     withdraw_round: int | None = None
+    # Set for verified sellers who joined through onboarding; None for the simulated ones.
+    account_id: str | None = None
+    # Per-round price concession for a real seller's auto-negotiating agent, as a fraction.
+    concession: Decimal | None = Field(default=None, gt=0, lt=Decimal("0.5"))
 
 
 class Event(Contract):
@@ -81,15 +85,22 @@ class BlocView(Contract):
     outcome: Clearing | None = None
     failure_reason: str | None = None
     calls: list[dict] = Field(default_factory=list)
+    viewer_is_owner: bool = False
 
 
 class Bloc(BlocView):
     sellers: list[Seller] = Field(default_factory=list)
+    owner_id: str | None = None
 
-    def public(self) -> BlocView:
-        value = self.model_dump(exclude={"sellers"})
+    def public_base(self) -> dict:
+        """The redacted view as plain JSON data, shown to someone who is not in this Bloc.
+        Seller private fields and account ids never appear: members are opaque ids."""
+        value = self.model_dump(mode="json", exclude={"sellers", "owner_id"})
+        for member in value["members"]:
+            member["user_id"] = member["id"]
+        value["viewer_is_owner"] = False
         active = [m for m in self.members if m.status == "HELD"]
-        value["committed_total"] = sum((m.max_price for m in active), Decimal(0))
+        value["committed_total"] = str(sum((m.max_price for m in active), Decimal(0)))
         if self.target_price is not None:
             eligible = sum(m.max_price >= self.target_price for m in active)
             value["target_reason"] = (
@@ -97,4 +108,18 @@ class Bloc(BlocView):
                 f"{eligible} of {len(active)} active buyers can afford this target. "
                 "A reference target, not a guaranteed negotiated price."
             )
+        return value
+
+    def viewer_positions(self, viewer_id: str | None) -> list[int]:
+        if not viewer_id:
+            return []
+        return [i for i, m in enumerate(self.members) if m.user_id == viewer_id]
+
+    def public(self, viewer_id: str | None = None) -> BlocView:
+        """Redacted view. Account ids never leave the server: the viewer's own membership is
+        marked "me" and everyone else is shown by their opaque membership id."""
+        value = self.public_base()
+        for i in self.viewer_positions(viewer_id):
+            value["members"][i]["user_id"] = "me"
+        value["viewer_is_owner"] = bool(viewer_id and self.owner_id == viewer_id)
         return BlocView.model_validate(value)
