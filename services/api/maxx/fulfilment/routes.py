@@ -17,6 +17,8 @@ hooks = APIRouter()
 
 @hooks.post("/webhooks/tracking", status_code=202)
 async def tracking_webhook(request: Request):
+    if not tracking.enabled():
+        raise HTTPException(404, "Not found.")
     ratelimit.hit(f"tracking-hook:{client_ip(request)}", 600, 60)
     body = await request.body()
     if len(body) > 256 * 1024:

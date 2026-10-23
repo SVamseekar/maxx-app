@@ -188,6 +188,9 @@ def test_tracking_webhooks_are_only_a_hint_and_must_be_signed(tracked, monkeypat
             headers={"content-type": "application/json", "x-hmac-signature": good},
         )
         assert signed.status_code == 202
+    monkeypatch.setattr(settings, "tracking_mode", "off")
+    with TestClient(app) as provider:
+        assert provider.post("/webhooks/tracking", json=forged).status_code == 404
 
 
 def test_easypost_trackers_are_created_and_read_with_the_server_key(monkeypatch):

@@ -316,3 +316,27 @@ def test_demo_and_real_sellers_never_cross(runtime, tour_on):  # noqa: F811
         )
         sellers.attach(real)
         assert demo["code"] not in {s.id for s in real.sellers}
+
+
+def test_the_room_never_learns_which_limit_an_ai_agent_hit(runtime):  # noqa: F811
+    class Greedy(FixtureAdapter):
+        async def seller(self, context):
+            if context["seller_id"] == "SAI1":
+                return {"price": "1", "max_qty": 999}  # far below the floor, beyond stock
+            return await super().seller(context)
+
+    from maxx import audit
+    from maxx.negotiate.blocs import transition
+
+    bloc = runtime.store.get("demo-success")
+    bloc.sellers.append(seller(id="SAI1", agent="ai", floor="100", opening_price="150"))
+    transition(bloc, "NEGOTIATING")
+    runtime.store.save(bloc)
+    asyncio.run(run_negotiation(runtime.store, "demo-success", Greedy(), round_delay=0))
+    events = runtime.store.get("demo-success").events
+    ai_offers = [e for e in events if e.type == "seller_offer" and e.data["seller"] == "SAI1"]
+    assert ai_offers and all(e.data["clamped"] for e in ai_offers)
+    # The room sees only "clamped"; which limit (here the floor and stock) stays in the audit log.
+    assert not any(e.type == "agent_limited" or "limits" in e.data for e in events)
+    limited = audit.recent(50, "agent.limited")
+    assert limited and "floor" in limited[0]["detail"] and "stock" in limited[0]["detail"]

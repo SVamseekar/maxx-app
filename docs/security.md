@@ -109,6 +109,27 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
 - `GET /me/export` (fresh identity check) returns everything held about an account; closing an
   account voids holds and erases commerce data, and is blocked while an order or problem is open.
 
+## Sellers, tracking and notifications (see [marketplace](marketplace.md))
+
+- Two more provider webhooks skip the origin check: `POST /webhooks/identity` (Stripe signature,
+  5-minute tolerance) and `POST /webhooks/tracking` (EasyPost HMAC; refused when tracking is off).
+  Both are rate limited and size limited, and neither body is trusted: the identity session or
+  tracker is re-read from the provider with the server's key before anything changes.
+- A seller is paid from carrier evidence, not their word: the tracking number must match the
+  carrier's format and check digit, cannot be reused across orders, and new sellers are paid only
+  on delivery. Returned, unscanned, failed or wrong-country parcels hold the payout for a person.
+- A seller's AI agent cannot spend past its limits: every bid is clamped at the execution boundary
+  (floor, opening price, no increase, at most 15% of the opening price per round, stock). The room
+  sees only that a bid was clamped, never which limit, so floors and stock stay private.
+- Identity results, sanctions matches, tax ids (encrypted; last four shown) and names are fixed
+  once screened: a seller cannot edit their legal name afterwards. Possible sanctions matches are
+  decided by a person, never automatically.
+- Notification emails carry only fixed sentences, link-free product titles and links to this
+  site's own pages; text written by another person is never emailed. Reads and preferences are
+  scoped to the signed-in account, and money, deadline and account emails cannot be switched off.
+- The judge's seller tour runs only with the PayPal simulator. Its Blocs are unlisted and refuse
+  real buyers; demo sellers sell only in their own tour and real sellers never join one.
+
 ## Known limits (honest list)
 
 - Rate limits and lockouts are per process, which fits the single-worker API; a multi-worker
@@ -127,6 +148,9 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
 - Email is a recovery channel: anyone who controls a mailbox can use emailed links. Encourage
   passkeys and two-step on the mailbox itself.
 - No external penetration test or formal audit has been done.
+- Stripe Identity, EasyPost and PayPal Payouts have been exercised only through their simulators
+  and mock transports here; the EasyPost signature header format in particular needs checking on
+  the first real delivery.
 
 ## Research behind the choices
 

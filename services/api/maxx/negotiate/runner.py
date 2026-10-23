@@ -3,6 +3,7 @@
 import asyncio
 from decimal import Decimal
 
+from maxx import audit
 from maxx.config import settings
 from maxx.negotiate.adapters import (
     Adapter,
@@ -135,12 +136,14 @@ async def run_negotiation(
                                 )
                                 clamped = bool(applied)
                                 if applied:
-                                    emit(
-                                        bloc,
-                                        "agent_limited",
-                                        round=current_round,
-                                        seller=seller.id,
-                                        limits=applied,
+                                    # Which limit applied (a floor, stock) would reveal the
+                                    # seller's private numbers, so the room only sees "clamped";
+                                    # the detail goes to the audit log.
+                                    audit.record(
+                                        f"seller:{seller.id}",
+                                        "agent.limited",
+                                        bloc.id,
+                                        f"round {current_round}: {', '.join(applied)}",
                                     )
                             else:
                                 offer, clamped = safe_offer(seller, bid)
