@@ -53,3 +53,12 @@ test("previous offer price is the seller's earlier quote and resets after withdr
   assert.equal(previousOfferPrice(events, "B", 5), null);
   assert.equal(previousOfferPrice(events, undefined, 5), null);
 });
+
+test("a negotiator that broke its contract is shown as the fixed rule, never hidden", () => {
+  const events = [
+    { id: 1, type: "round_start", data: { round: 2 } },
+    { id: 2, type: "negotiator_fallback", data: { round: 2, message: "Negotiator unavailable; using the fixed rule for this round." } },
+    { id: 3, type: "reserve_set", data: { round: 2, price: "150" } },
+  ];
+  assert.deepEqual(conversationGroups(events).map(g => g.kind), ["round_start", "negotiator_fallback", "reserve_set"]);
+});

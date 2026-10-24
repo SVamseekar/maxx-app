@@ -9,6 +9,7 @@ export type ConversationGroup = {
 const visibleEvents = new Set([
   "round_start", "reserve_set", "negotiator_message", "seller_offer",
   "seller_withdrew", "seller_unavailable", "provider_retry", "tentative_allocation",
+  "negotiator_fallback",
 ]);
 
 /** Collapse only adjacent, equivalent messages. Every original event stays available. */

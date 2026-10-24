@@ -18,6 +18,7 @@ from maxx.negotiate.blocs import emit, transition
 from maxx.negotiate.contracts import Bloc, Clearing
 from maxx.negotiate.engine import clear
 from maxx.negotiate.store import BlocStore
+from maxx.providers import BudgetExceeded, ModelOutputError
 
 
 def terminal_failure(bloc: Bloc, reason: str):
@@ -60,7 +61,9 @@ async def run_negotiation(
             try:
                 return await asyncio.wait_for(function(), timeout=settings.provider_timeout)
             except Exception as exc:
-                if attempt:
+                # An answer out of contract was already retried once inside chat(), and a spending
+                # limit will not lift in a second, so neither earns another paid attempt.
+                if attempt or isinstance(exc, ModelOutputError | BudgetExceeded):
                     raise RuntimeError("Provider failed after one retry.") from exc
                 emit(bloc, "provider_retry", role=kind, attempt=2)
                 persist()
@@ -93,6 +96,13 @@ async def run_negotiation(
                     await retry("negotiator", lambda context=context: adapter.negotiator(context))
                 )
                 reserve = min(plan.reserve or ceiling, ceiling)
+                if plan.fallback:
+                    emit(
+                        bloc,
+                        "negotiator_fallback",
+                        round=round,
+                        message="Negotiator unavailable; using the fixed rule for this round.",
+                    )
                 emit(bloc, "reserve_set", round=round, price=str(reserve))
                 for seller_id in plan.messages:
                     if seller_id in context["seller_ids"]:
@@ -130,12 +140,14 @@ async def run_negotiation(
                                 last_price.get(seller.id),
                             )
                             bid = await retry("seller", lambda: adapter.seller(private))
-                            if seller.account_id:
+                            if seller.account_id or adapter.mode == "live":
+                                # Every model-made bid, a real seller's agent or a persona, passes
+                                # the same hard limits.
                                 offer, applied = guard_ai_bid(
                                     seller, bid, last_price.get(seller.id)
                                 )
                                 clamped = bool(applied)
-                                if applied:
+                                if applied and seller.account_id:
                                     # Which limit applied (a floor, stock) would reveal the
                                     # seller's private numbers, so the room only sees "clamped";
                                     # the detail goes to the audit log.

@@ -19,6 +19,10 @@ class ModelOutputError(ProviderError):
     """The model answered, but not within its contract, even after the one allowed retry."""
 
 
+class BudgetExceeded(ProviderError):
+    """A spending limit would be crossed, so the call was never made."""
+
+
 class Rejected(Exception):  # noqa: N818 - a signal, not an error the caller handles
     def __init__(self, rule: str):
         self.rule = rule

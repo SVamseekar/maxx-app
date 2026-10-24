@@ -3,9 +3,7 @@ import json
 from decimal import Decimal
 
 import httpx2 as httpx
-import pytest
 
-from maxx import providers
 from maxx.negotiate.adapters import NebiusAdapter, Plan, seller_context
 from maxx.negotiate.contracts import Seller
 
@@ -86,8 +84,9 @@ def test_invalid_negotiator_tool_is_rejected(monkeypatch, tmp_path):
 
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
-            with pytest.raises(providers.ProviderError):
-                await NebiusAdapter("test", client=client).negotiator({})
+            context = {"round": 1, "reserve_ceiling": "150", "seller_ids": ["A"]}
+            plan = await NebiusAdapter("test", client=client).negotiator(context)
+            assert plan.fallback and plan.reserve == Decimal("150")
 
     asyncio.run(run())
 

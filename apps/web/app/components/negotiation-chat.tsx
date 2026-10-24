@@ -70,6 +70,7 @@ function ConversationEntry({ group, events, stream, onStream }: EntryProps) {
     const text = `${event.data.served ?? 0} buyers can be served${event.data.avg_price ? ` at an average of ${usd(event.data.avg_price)}` : " at this point"}.${event.data.unserved !== undefined ? ` ${event.data.unserved} remain unserved.` : ""}`;
     return <div className="chat-reply"><Sender name="Allocation check" role="Deterministic" detail={`Round ${group.round}`} /><Body text={text} stream={stream} onStream={onStream} /></div>;
   }
+  if (group.kind === "negotiator_fallback") return <div className="chat-reply chat-exception"><Sender name="Negotiator update" detail={`Round ${group.round}`} /><Body text={event.data.message ?? "Negotiator unavailable; using the fixed rule for this round."} stream={stream} onStream={onStream} /></div>;
   const text = group.kind === "seller_withdrew" ? `Seller ${event.data.seller} withdrew. Their offer is excluded from the negotiation.` : group.kind === "seller_unavailable" ? `Seller ${event.data.seller} is unavailable. Continuing with the remaining sellers.` : "A provider call failed. Retrying once.";
   return <div className="chat-reply chat-exception"><Sender name={group.kind === "provider_retry" ? "Connection update" : "Seller update"} detail={`Round ${group.round}`} /><Body text={text} stream={stream} onStream={onStream} /></div>;
 }
