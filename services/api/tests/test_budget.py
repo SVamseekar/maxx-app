@@ -274,3 +274,21 @@ def test_the_model_list_is_free_and_never_held():
 
     asyncio.run(go())
     assert budget.status()["day"]["reserved_usd"] == "0.000000"
+
+
+def test_people_cannot_use_the_share_kept_for_negotiations(monkeypatch):
+    monkeypatch.setattr(settings, "ai_user_daily_budget_usd", "1")
+    monkeypatch.setattr(settings, "ai_negotiation_daily_budget_usd", "0.20")
+    hold(Payer("user", "a"), "0.15")
+    with pytest.raises(BudgetExceeded, match="today's AI budget"):
+        hold(Payer("user", "b"), "0.10")  # 0.25 > 0.40 - 0.20
+    hold(Payer("system", "negotiation:x"), "0.20")  # the kept share is still whole
+    with pytest.raises(BudgetExceeded, match="negotiations"):
+        hold(Payer("system", "negotiation:y"), "0.01")
+
+
+def test_visitors_are_refused_everywhere_when_sign_in_is_required(monkeypatch):
+    monkeypatch.setattr(settings, "ai_anonymous_live", False)
+    with pytest.raises(BudgetExceeded, match="sign in to use live AI"):
+        hold(ANON, "0.001")
+    assert hold(USER, "0.001")

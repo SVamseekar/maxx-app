@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     ai_max_calls_per_scan: int = Field(default=10, ge=1, le=50)
     ai_max_calls_per_negotiation: int = Field(default=120, ge=1, le=500)
     ai_negotiation_worst_usd: str = "0.10"
+    # Part of each day kept for negotiations; people's scans and matches share the rest.
+    ai_negotiation_daily_budget_usd: str = "0.20"
     tavily_monthly_credits: int = Field(default=900, ge=0)
     tavily_daily_credits: int = Field(default=40, ge=0)
     bloc_open_seconds: int = Field(default=3600, ge=5, le=604800)
@@ -215,6 +217,7 @@ class Settings(BaseSettings):
     scan_rate_anonymous_per_hour: int = Field(default=30, ge=1)
     scan_rate_user_per_hour: int = Field(default=120, ge=1)
     match_rate_per_hour: int = Field(default=120, ge=1)
+    bloc_actions_per_hour: int = Field(default=10, ge=1)  # Bloc creations and starts per person
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
     @field_validator("demo_tools", "docs_enabled", mode="before")

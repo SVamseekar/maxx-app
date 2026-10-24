@@ -60,8 +60,6 @@ async def scan(
             corrections["currency"] = "USD"
         if merchant is not None:
             corrections["merchant"] = merchant[:120]
-        if settings.scan_mode == "live" and not user and not settings.ai_anonymous_live:
-            raise BudgetExceeded("Live AI is paused: sign in to run a live scan.")
         payer = budget.payer_for(user, client_ip(request))
         async with asyncio.timeout(100):
             with budget.payer_scope(payer, settings.ai_max_calls_per_scan):

@@ -73,7 +73,7 @@ def test_visitors_can_be_asked_to_sign_in_before_any_live_ai(monkeypatch):
     monkeypatch.setattr(settings, "ai_anonymous_live", False)
     response, seen = live_scan(monkeypatch, {})
     assert response.status_code == 503
-    assert response.json()["message"] == "Live AI is paused: sign in to run a live scan."
+    assert response.json()["message"] == "Live AI is paused: sign in to use live AI."
     assert seen == {}
 
 
@@ -197,3 +197,57 @@ def test_a_timed_close_without_budget_fails_and_releases_buyers(monkeypatch, tmp
     closed = runtime.store.get("demo-success")
     assert closed.status == "FAILED"
     assert closed.failure_reason.startswith("Live AI is paused:")
+
+
+def test_an_operator_pause_never_fails_a_timed_close(monkeypatch, tmp_path):
+    import time
+
+    from maxx import audit
+    from maxx.negotiate.adapters import FixtureAdapter
+    from maxx.negotiate.routes import Runtime
+    from maxx.negotiate.store import BlocStore
+
+    class Live(FixtureAdapter):
+        mode = "live"
+
+    runtime = Runtime(BlocStore(f"sqlite:///{tmp_path}/r.sqlite"), "live", 0, Live)
+    runtime.seed()
+    bloc = runtime.store.get("demo-success")
+    bloc.closes_at = int(time.time()) - 1
+    runtime.store.save(bloc)
+    audit.set_flag("ai_paused", "1")
+    asyncio.run(runtime.tick())
+    assert runtime.store.get("demo-success").status == "OPEN"  # retried once AI resumes
+
+
+def test_starting_and_creating_blocs_is_rate_limited_per_person(monkeypatch):
+    monkeypatch.setattr(settings, "bloc_actions_per_hour", 2)
+    client = TestClient(app)
+    sign_up(client)
+    body = {"title": "Custom headphones", "typical_price": "100", "confirmed_variant": True}
+    codes = [client.post("/blocs", json=body).status_code for _ in range(3)]
+    assert codes[:2] == [201, 201] and codes[2] == 429
+
+
+def test_catalogue_matching_follows_the_sign_in_rule(monkeypatch):
+    monkeypatch.setattr(settings, "match_mode", "live")
+    monkeypatch.setattr(settings, "nebius_api_key", "k")
+    monkeypatch.setattr(settings, "ai_anonymous_live", False)
+    import httpx2 as httpx
+
+    from maxx import matching
+
+    sent = []
+    original = httpx.AsyncClient
+    monkeypatch.setattr(
+        matching.httpx,
+        "AsyncClient",
+        lambda **kw: original(
+            transport=httpx.MockTransport(lambda req: sent.append(req) or httpx.Response(500)),
+            **kw,
+        ),
+    )
+    response = TestClient(app).post("/catalog/match", json={"title": "Sony"})
+    assert sent == []
+    assert response.status_code == 503
+    assert "sign in to use live AI" in response.json()["detail"]

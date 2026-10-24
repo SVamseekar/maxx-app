@@ -59,7 +59,7 @@ def negotiation_worst_ok(now: float | None = None):
     if _paused():
         raise BudgetExceeded(PAUSED)
     need = Decimal(settings.ai_negotiation_worst_usd)
-    if remaining_for(Payer("system", "negotiation"), now) < need:
+    if remaining_for(Payer("system", "negotiation:check"), now) < need:
         raise BudgetExceeded(
             "Live AI is paused: not enough of today's AI budget is left to run a negotiation. "
             "It resets at 00:00 UTC."
@@ -116,6 +116,21 @@ def _limits(payer: Payer, now: float) -> list[tuple[str, str, int, str]]:
             "today's AI budget is used up. It resets at 00:00 UTC.",
         ),
     ]
+    negotiation_share = _usd(settings.ai_negotiation_daily_budget_usd)
+    today = "today's AI budget is used up. It resets at 00:00 UTC."
+    if payer.kind in {"user", "anonymous"}:
+        # People's own calls can never eat the part of the day kept for negotiations.
+        people = max(0, _usd(settings.ai_daily_budget_usd) - negotiation_share)
+        limits.append(("people_day", day, people, today))
+    elif payer.key.startswith(("negotiation:", "market:")):
+        limits.append(
+            (
+                "negotiation_day",
+                day,
+                negotiation_share,
+                "today's AI budget for negotiations is used up. It resets at 00:00 UTC.",
+            )
+        )
     if payer.kind == "anonymous":
         visitors = (
             "today's allowance for visitors who are not signed in is used up. Sign in to keep "
@@ -144,6 +159,15 @@ def _limits(payer: Payer, now: float) -> list[tuple[str, str, int, str]]:
 
 def _paused() -> bool:
     return settings.ai_paused or audit.flag("ai_paused") == "1"
+
+
+def _gate(scope: Scope):
+    """Checks that hold for every paid call, whatever the entry point."""
+    if _paused():
+        raise BudgetExceeded(PAUSED)
+    if scope.payer.kind == "anonymous" and not settings.ai_anonymous_live:
+        raise BudgetExceeded("Live AI is paused: sign in to use live AI.")
+    _count_call(scope)
 
 
 def _count_call(scope: Scope):
@@ -211,9 +235,7 @@ def reserve(request_id, role: str, usd: Decimal, now: float | None = None) -> Ho
     """Hold a model call's worst-case cost against every limit for the current payer."""
     now = time.time() if now is None else now
     scope = current()
-    if _paused():
-        raise BudgetExceeded(PAUSED)
-    _count_call(scope)
+    _gate(scope)
     return _hold(request_id, role, _limits(scope.payer, now), micros(usd), now)
 
 
@@ -221,9 +243,7 @@ def reserve_credits(request_id, credits: int, now: float | None = None) -> Hold:
     """Hold Tavily credits (counted as whole credits, not dollars) against the month and day."""
     now = time.time() if now is None else now
     scope = current()
-    if _paused():
-        raise BudgetExceeded(PAUSED)
-    _count_call(scope)
+    _gate(scope)
     month = _day(now)[:7]
     limits = [
         (
@@ -304,6 +324,10 @@ def _bucket(db, scope, period, cap) -> dict:
     }
 
 
+def paused() -> bool:
+    return _paused()
+
+
 def status(now: float | None = None) -> dict:
     """The operator's view: every shared limit, for today and this month."""
     now = time.time() if now is None else now
@@ -316,6 +340,12 @@ def status(now: float | None = None) -> dict:
                 ("total", "total", "all", _usd(settings.ai_budget_usd)),
                 ("day", "day", day, _usd(settings.ai_daily_budget_usd)),
                 ("anonymous_day", "anon_day", day, _usd(settings.ai_anonymous_daily_budget_usd)),
+                (
+                    "negotiation_day",
+                    "negotiation_day",
+                    day,
+                    _usd(settings.ai_negotiation_daily_budget_usd),
+                ),
             ]
         }
         for name, scope, period, credits in [

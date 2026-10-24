@@ -122,3 +122,18 @@ def test_payer():
 
     with budget.payer_scope(budget.Payer("system", "test"), 1000):
         yield
+
+
+@pytest.fixture(autouse=True)
+def no_real_network(monkeypatch):
+    """Tests never reach a real provider: any request not on a mock transport fails loudly."""
+    import httpx2 as httpx
+
+    def refuse(self, request):
+        raise AssertionError(f"Test tried a real network call to {request.url.host}")
+
+    async def refuse_async(self, request):
+        refuse(self, request)
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", refuse_async)

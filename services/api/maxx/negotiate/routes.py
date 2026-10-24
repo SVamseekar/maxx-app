@@ -223,7 +223,10 @@ class Runtime:
             try:
                 await self.start(id)
             except BudgetExceeded as exc:
-                # A timed close cannot wait for tomorrow's budget while buyers' money is held.
+                if budget.paused():
+                    continue  # an operator pause is temporary: close once AI is resumed
+                # Out of budget: a timed close cannot wait for tomorrow while buyers' money is
+                # held, so it ends now, says why, and releases every hold. Nothing is charged.
                 b = self.store.get(id)
                 if b.status == "OPEN":
                     terminal_failure(b, str(exc) + " Commitments released.")
@@ -313,6 +316,7 @@ def list_blocs(runtime: RuntimeDep, user: OptionalUser):
 async def create_bloc(
     body: CreateBloc, runtime: RuntimeDep, matcher: MatcherDep, user: CurrentUser
 ):
+    ratelimit.hit(f"bloc:{user.id}", settings.bloc_actions_per_hour, 3600)
     # Matching and the comparable-price search are the creator's AI calls.
     with budget.payer_scope(budget.payer_for(user, ""), settings.ai_max_calls_per_scan):
         return await _create_bloc(body, runtime, matcher, user)
@@ -470,6 +474,7 @@ async def start_bloc(id: str, runtime: RuntimeDep, user: CurrentUser):
         m.user_id == user.id and m.status != "LEFT" for m in b.members
     ):
         raise HTTPException(403, "Join this Bloc before closing it.")
+    ratelimit.hit(f"bloc:{user.id}", settings.bloc_actions_per_hour, 3600)
     try:
         await runtime.start(id)
         return get_bloc(runtime, id).public(user.id)
