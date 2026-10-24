@@ -55,7 +55,10 @@ def isolate_application_store(tmp_path, monkeypatch):
     store = BlocStore(f"sqlite:///{tmp_path}/application.sqlite")
     monkeypatch.setattr(storage, "get_store", lambda: store)
     monkeypatch.setattr(settings, "worker_enabled", False)
-    monkeypatch.setattr(settings, "model_rates_json", "{}")
+    # Real rates, so every mocked call passes through the budget like a live one.
+    monkeypatch.setattr(
+        settings, "model_rates_json", type(settings).model_fields["model_rates_json"].default
+    )
     # Whatever .env says, tests start with the money layer off and opt in explicitly.
     monkeypatch.setattr(settings, "paypal_mode", "off")
     monkeypatch.setattr(settings, "list_cache_seconds", 0)

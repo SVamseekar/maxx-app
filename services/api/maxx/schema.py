@@ -73,6 +73,31 @@ calls = Table(
     Column("metadata", Text, nullable=False),
 )
 
+# The AI spending cap. One row per limit and period (a UTC day, a month, or "all"); caps live in
+# settings. Each paid call first holds its worst case in every limit that applies, then settles.
+ai_budget = Table(
+    "ai_budget",
+    metadata,
+    Column("scope", String(120), primary_key=True),
+    Column("period", String(10), primary_key=True),
+    Column("spent_micros", BigInteger, nullable=False, default=0),
+    Column("reserved_micros", BigInteger, nullable=False, default=0),
+)
+ai_reservations = Table(
+    "ai_reservations",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("request_id", String(100), nullable=False),
+    Column("role", String(30), nullable=False),
+    Column("buckets", Text, nullable=False),  # JSON [[scope, period], ...]
+    Column("amount_micros", BigInteger, nullable=False),
+    Column("actual_micros", BigInteger),
+    Column("status", String(10), nullable=False),  # held | settled | expired
+    Column("created_at", BigInteger, nullable=False),
+    Column("expires_at", BigInteger, nullable=False),
+    Index("ix_ai_reservations_status_expires", "status", "expires_at"),
+)
+
 # Accounts. Passwords are salted scrypt hashes; session and one-time tokens are stored only as
 # SHA-256 digests, so a database read cannot be replayed as a login.
 users = Table(

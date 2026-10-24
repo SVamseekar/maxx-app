@@ -7,7 +7,7 @@ import httpx2 as httpx
 
 from maxx import storage
 from maxx.config import settings
-from maxx.costs import calculate_cost
+from maxx.costs import calculate_cost, worst_case_usd
 from maxx.guardrails import ROLES, data_message, strip_reasoning, system_message
 
 
@@ -75,6 +75,56 @@ def log_guard(request_id, role: str, rules: list[str]):
         )
 
 
+def model_rates() -> dict:
+    try:
+        rates = json.loads(settings.model_rates_json)
+    except ValueError:
+        return {}
+    return rates if isinstance(rates, dict) else {}
+
+
+def reserve_for(request_id, provider, purpose, payload, record):
+    """Hold the call's worst case before it is made, or refuse it. Listing models is free."""
+    from maxx import budget
+
+    if purpose == "models" or payload is None:
+        return None
+    try:
+        if provider == "tavily":
+            urls = len(payload.get("urls", [])) if purpose == "extract" else 0
+            # Basic search is 1 credit; basic extract is 1 credit per 5 pages.
+            return budget.reserve_credits(request_id, -(-urls // 5) if urls else 1)
+        text = json.dumps(payload.get("messages") or payload.get("input") or [])
+        tools = json.dumps(payload.get("tools", []))
+        images = text.count('"image_url"')
+        # An image is counted by the model's per-image tokens, not by its base64 length.
+        chars = len(text) + len(tools) - sum(len(part) for part in image_parts(payload))
+        worst = worst_case_usd(
+            payload.get("model"), chars, images, payload.get("max_tokens", 0), model_rates()
+        )
+        if worst is None:
+            raise BudgetExceeded(
+                "Live AI is paused: no price is configured for this model, so it is never "
+                "called. Set MODEL_RATES_JSON."
+            )
+        return budget.reserve(request_id, purpose, worst)
+    except BudgetExceeded:
+        record["status"] = "refused"
+        record["latency_ms"] = 0
+        log_call(record)
+        raise
+
+
+def image_parts(payload) -> list[str]:
+    return [
+        part["image_url"]["url"]
+        for message in payload.get("messages") or []
+        if isinstance(message.get("content"), list)
+        for part in message["content"]
+        if isinstance(part, dict) and part.get("type") == "image_url"
+    ]
+
+
 async def request(client, request_id, calls, provider, purpose, url, payload=None, parse=None):
     start = time.perf_counter()
     record = {
@@ -87,6 +137,7 @@ async def request(client, request_id, calls, provider, purpose, url, payload=Non
         "cost_usd": None,
     }
     key = settings.nebius_api_key if provider == "nebius" else settings.tavily_api_key
+    hold = reserve_for(request_id, provider, purpose, payload, record)
     try:
         response = await client.request(
             "POST" if payload is not None else "GET",
@@ -124,15 +175,15 @@ async def request(client, request_id, calls, provider, purpose, url, payload=Non
         ) from exc
     finally:
         record["latency_ms"] = round((time.perf_counter() - start) * 1000)
-        try:
-            rates = json.loads(settings.model_rates_json)
-        except ValueError:
-            rates = {}
-        if not isinstance(rates, dict):
-            rates = {}
+        rates = model_rates()
         cost = calculate_cost(
             record["model"], record["tokens"], rates, embedding=purpose == "embed"
         )
+        if hold is not None:
+            from maxx import budget
+
+            # Tavily costs a fixed number of credits; a model call costs what its usage says.
+            budget.settle(hold, None if provider == "tavily" else cost)
         record["cost_usd"] = str(cost) if cost is not None else None
         record["cost_status"] = "estimated" if cost is not None else "unmeasured"
         record["rate_date"] = (

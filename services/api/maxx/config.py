@@ -8,7 +8,37 @@ ROOT = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://maxx:maxx_local@127.0.0.1:55432/maxx"
-    model_rates_json: str = "{}"
+    # Token Factory prices per million tokens (catalog snapshot of 20 Oct 2026; Nebius's own price
+    # page renders only in the console, so re-check there). A model missing here is never called.
+    model_rates_json: str = (
+        '{"nvidia/Nemotron-3_5-Lightning": {"input_usd_per_million": "0.06", '
+        '"output_usd_per_million": "0.24", "effective_date": "2026-10-20"}, '
+        '"nvidia/nemotron-3-super-120b-a12b": {"input_usd_per_million": "0.30", '
+        '"output_usd_per_million": "0.90", "effective_date": "2026-10-20"}, '
+        '"nvidia/Nemotron-3-Ultra-550b-a55b": {"input_usd_per_million": "1.00", '
+        '"output_usd_per_million": "3.00", "effective_date": "2026-10-20"}, '
+        '"nvidia/Nemotron-3.5-Super-VL": {"input_usd_per_million": "0.30", '
+        '"output_usd_per_million": "0.90", "effective_date": "2026-10-20", "image_tokens": 1800}, '
+        '"google/gemma-3-27b-it": {"input_usd_per_million": "0.10", '
+        '"output_usd_per_million": "0.30", "effective_date": "2026-10-20", "image_tokens": 256}, '
+        '"Qwen/Qwen3-Embedding-8B": {"input_usd_per_million": "0.01", '
+        '"output_usd_per_million": "0", "effective_date": "2026-10-20"}}'
+    )
+    # The AI spending cap. Every paid call reserves its worst-case cost against all of these first;
+    # see docs/ai-guardrails.md. Amounts are US dollars as strings; days are UTC.
+    ai_budget_usd: str = "20"
+    ai_daily_budget_usd: str = "0.40"
+    ai_anonymous_daily_budget_usd: str = "0.08"
+    ai_address_daily_budget_usd: str = "0.02"
+    ai_user_daily_budget_usd: str = "0.05"
+    ai_premium_user_daily_budget_usd: str = "0.25"
+    ai_paused: bool = False  # the operator's kill switch; the admin console has one too
+    ai_anonymous_live: bool = True  # false: visitors must sign in before any live AI call
+    ai_max_calls_per_scan: int = Field(default=10, ge=1, le=50)
+    ai_max_calls_per_negotiation: int = Field(default=120, ge=1, le=500)
+    ai_negotiation_worst_usd: str = "0.10"
+    tavily_monthly_credits: int = Field(default=900, ge=0)
+    tavily_daily_credits: int = Field(default=40, ge=0)
     bloc_open_seconds: int = Field(default=3600, ge=5, le=604800)
     worker_enabled: bool = True
     match_mode: str = "fixture"
