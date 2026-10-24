@@ -145,3 +145,38 @@ def test_admin_can_settle_a_dispute_and_the_overview_shows_health(runtime, admin
         assert admin.get("/admin/reconcile").json()["mismatches"] == []
     finally:
         market.close()
+
+
+def test_the_console_shows_ai_spend_and_guard_activity(runtime, admin):
+    from decimal import Decimal
+
+    from maxx import budget, providers
+
+    with budget.payer_scope(budget.Payer("system", "test"), 5):
+        held = budget.reserve("r1", "vision", Decimal("0.01"))
+    budget.settle(held, Decimal("0.004"))
+    providers.log_call(
+        {"request_id": "r1", "provider": "nebius", "purpose": "vision", "status": "ok"}
+    )
+    providers.log_guard("r1", "verdict", ["verdict_numbers"])
+    providers.log_call(
+        {"request_id": "r2", "provider": "nebius", "purpose": "extract", "status": "refused"}
+    )
+    ai = admin.get("/admin/overview").json()["ai"]
+    assert ai["paused"] is False
+    assert ai["budget"]["day"]["spent_usd"] == "0.004000"
+    assert ai["budget"]["total"]["cap_usd"] == "20.000000"
+    assert set(ai["budget"]) >= {"anonymous_day", "tavily_month", "tavily_day"}
+    assert ai["roles"]["vision"]["calls"] == 1
+    assert ai["roles"]["extract"]["refused"] == 1
+    assert ai["guards"] == {"verdict_numbers": 1}
+
+
+def test_an_administrator_can_pause_live_ai_and_it_is_audited(runtime, admin):
+    with TestClient(app) as normal:
+        sign_up(normal, "someone@example.com")
+        assert normal.post("/admin/ai/pause", json={"paused": True}).status_code == 403
+    assert admin.post("/admin/ai/pause", json={"paused": True}).json() == {"ai_paused": True}
+    assert admin.get("/admin/overview").json()["ai"]["paused"] is True
+    assert any(e["action"] == "ai.pause" for e in admin.get("/admin/audit").json())
+    assert admin.post("/admin/ai/pause", json={"paused": False}).json() == {"ai_paused": False}

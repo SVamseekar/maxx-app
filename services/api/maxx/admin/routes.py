@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import time
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
-from maxx import audit, schema, storage
+from maxx import audit, budget, schema, storage
 from maxx.auth.deps import CurrentUser, FreshUser, is_admin, same_origin
 from maxx.compliance import sanctions
 from maxx.config import settings
@@ -46,6 +47,39 @@ class Resolve(Strict):
 
 class Freeze(Strict):
     frozen: bool
+
+
+class PauseAi(Strict):
+    paused: bool
+
+
+def ai_activity(hours: int = 24) -> dict:
+    """Model calls, refusals and guard hits per role over the last day, from the call log."""
+    since = time.time_ns() - hours * 3600 * 10**9
+    with storage.get_store().engine.connect() as db:
+        rows = db.execute(
+            select(schema.calls.c.metadata)
+            .where(schema.calls.c.created_at >= since)
+            .order_by(schema.calls.c.created_at.desc())
+            .limit(20000)
+        ).scalars()
+        records = [json.loads(r) for r in rows]
+    roles: dict[str, dict] = {}
+    guards: dict[str, int] = {}
+    for record in records:
+        for rule in record.get("guard") or []:
+            guards[rule] = guards.get(rule, 0) + 1
+        if record.get("provider") == "guard":
+            continue
+        role = roles.setdefault(
+            str(record.get("purpose")), {"calls": 0, "refused": 0, "rejected": 0, "cost_usd": "0"}
+        )
+        status = record.get("status")
+        role["calls" if status not in {"refused"} else "refused"] += 1
+        role["rejected"] += status == "rejected"
+        if record.get("cost_usd"):
+            role["cost_usd"] = str(Decimal(role["cost_usd"]) + Decimal(record["cost_usd"]))
+    return {"roles": roles, "guards": guards}
 
 
 class Screening(Strict):
@@ -169,6 +203,7 @@ def overview():
             for row in sellers.listings()
         ],
         "audit": audit.recent(60),
+        "ai": ai_overview(),
     }
 
 
@@ -321,6 +356,19 @@ def freeze(body: Freeze, user: FreshUser):
         f"admin:{user.id[:8]}", "payments.freeze", "", "frozen" if body.frozen else "thawed"
     )
     return {"payments_frozen": audit.payments_frozen()}
+
+
+def ai_overview() -> dict:
+    status = budget.status()
+    return {"paused": status.pop("paused"), "budget": status, **ai_activity()}
+
+
+@router.post("/ai/pause")
+def pause_ai(body: PauseAi, user: FreshUser):
+    """The AI kill switch: every live model and search call is refused while paused."""
+    audit.set_flag("ai_paused", "1" if body.paused else "0")
+    audit.record(f"admin:{user.id[:8]}", "ai.pause", "", "paused" if body.paused else "resumed")
+    return {"ai_paused": budget.status()["paused"]}
 
 
 @router.get("/audit")

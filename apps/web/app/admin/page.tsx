@@ -15,13 +15,14 @@ import { useAction } from "../lib/use-action";
 import { loginPath, relativeTime } from "../lib/auth-helpers";
 import { CASE_KINDS } from "../lib/orders";
 import { countryName } from "../lib/countries";
+import { aiSpendRows, guardSummary, type AiOverview } from "./ai-spend";
 
 type Hit = { entry_id: string; name: string; program: string; score: number; cleared?: boolean };
 type SellerRow = { code: string; business_name: string; legal_name: string; business_type: string; country: string; address_line1: string; address_city: string; address_postal: string; phone: string; support_email: string; website: string; trade_register_no: string; ship_within_days: number; ships_to: string; return_days: number; return_policy: string; status: string; review_note: string; strikes: number; payout_email: string; payout_verified: boolean; identity_status: string; identity_name: string; identity_country: string; screening_status: string; screening_hits: Hit[]; tax_id_last4: string; demo: boolean; next_step: string | null };
 type FlaggedOrder = { id: string; title: string; seller: string; status: string; carrier: string; tracking_status: string; flag: string };
 type ListingRow = { id: string; title: string; seller: string; seller_name: string; gtin: string; category: string; active: boolean; created_at: number };
 type CaseRow = { id: string; order_id: string; kind: string; opened_at: number; respond_by: number; overdue: boolean; messages: { actor: string; body: string; at: number }[] };
-type Overview = { payments_frozen: boolean; mode: string; review_mode: string; modes: Record<string, string>; health: Record<string, number | null | Record<string, number>>; pending_sellers: SellerRow[]; recent_sellers: SellerRow[]; open_cases: CaseRow[]; flagged_orders: FlaggedOrder[]; listings: ListingRow[]; audit: { id: number; at: number; actor: string; action: string; subject: string; detail: string }[] };
+type Overview = { payments_frozen: boolean; mode: string; review_mode: string; modes: Record<string, string>; health: Record<string, number | null | Record<string, number>>; pending_sellers: SellerRow[]; recent_sellers: SellerRow[]; open_cases: CaseRow[]; flagged_orders: FlaggedOrder[]; listings: ListingRow[]; audit: { id: number; at: number; actor: string; action: string; subject: string; detail: string }[]; ai: AiOverview };
 
 export default function Admin() {
   const confirmAction = useConfirm();
@@ -56,7 +57,7 @@ export default function Admin() {
   const sellerRows = data.recent_sellers.filter(row => matchesQuery(`${row.code} ${row.business_name} ${row.legal_name}`, sellerQuery) && (sellerFilter === "all" || row.status === sellerFilter));
   return <main id="main-content" className="admin-page">
     <PageIntro title="Operator console." description="Seller review, disputes, payment health and the emergency brake. Every action here is written to the audit log."><Badge tone={data.payments_frozen ? "warn" : "good"}>{data.payments_frozen ? "Payments paused" : "Payments running"}</Badge></PageIntro>
-    <SectionNav items={[{id:"health-h",label:"Payment health"},{id:"queue-h",label:"Review queue"},{id:"flags-h",label:"Delivery problems"},{id:"cases-h",label:"Problems"},{id:"listings-h",label:"Listings"},{id:"sellers-h",label:"Sellers"},{id:"audit-h",label:"Audit log"}]} />
+    <SectionNav items={[{id:"health-h",label:"Payment health"},{id:"ai-h",label:"AI spend"},{id:"queue-h",label:"Review queue"},{id:"flags-h",label:"Delivery problems"},{id:"cases-h",label:"Problems"},{id:"listings-h",label:"Listings"},{id:"sellers-h",label:"Sellers"},{id:"audit-h",label:"Audit log"}]} />
     {action.message && <FormMessage tone={action.message.tone}>{action.message.text}</FormMessage>}
     <section className="seller-card" aria-labelledby="health-h">
       <h2 id="health-h">Payment health</h2>
@@ -67,6 +68,16 @@ export default function Admin() {
         <button type="button" disabled={action.busy} onClick={() => void action.run(async () => { const result = await request<{ checked: number; mismatches: unknown[] }>("/api/admin/reconcile"); setRecon(`Checked ${result.checked} payments against PayPal. ${result.mismatches.length === 0 ? "No differences." : `${result.mismatches.length} differ: ${JSON.stringify(result.mismatches).slice(0, 300)}`}`); })}>Reconcile with PayPal</button>
       </div>
       {recon && <p className="small" role="status">{recon}</p>}
+    </section>
+
+    <section className="seller-card" aria-labelledby="ai-h">
+      <h2 id="ai-h">AI spend <Badge tone={data.ai.paused ? "warn" : "good"}>{data.ai.paused ? "Live AI paused" : "Live AI running"}</Badge></h2>
+      <div className="health-grid">{aiSpendRows(data.ai.budget).map(row => <div key={row.label} className={row.warn ? "warn" : ""}><strong>{row.text}</strong><span>{row.label}</span></div>)}</div>
+      <p className="muted small">Last 24 hours: {Object.entries(data.ai.roles).filter(([role]) => role !== "models").map(([role, r]) => `${role} ${r.calls} call${r.calls === 1 ? "" : "s"}${r.refused ? `, ${r.refused} refused` : ""}${r.rejected ? `, ${r.rejected} rejected` : ""} ($${Number(r.cost_usd).toFixed(4)})`).join(" · ") || "no model calls"}.</p>
+      <p className="muted small">Guards fired: {guardSummary(data.ai.guards).join(" · ") || "none"}. Days reset at 00:00 UTC; spend is an estimate from Token Factory list prices.</p>
+      <div className="inline-actions">
+        <button type="button" className={data.ai.paused ? "button primary" : ""} disabled={action.busy} onClick={async () => { if (await confirmAction(data.ai.paused ? "Resume live AI calls?" : "Pause ALL live AI calls? Scans and negotiations say why; the rest of Maxx keeps working.")) void action.run(async () => { await secure(() => request("/api/admin/ai/pause", { body: { paused: !data.ai.paused } })); await load(); return data.ai.paused ? "Live AI resumed." : "Live AI paused."; }); }}>{data.ai.paused ? "Resume live AI" : "Pause live AI"}</button>
+      </div>
     </section>
 
     <section className="seller-card" aria-labelledby="queue-h">
