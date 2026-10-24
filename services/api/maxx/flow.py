@@ -11,9 +11,27 @@ from pydantic import Field
 
 from maxx import storage
 from maxx.config import ROOT, settings
-from maxx.matching import match_item
-from maxx.providers import ProviderError, chat, request
-from maxx.scan import Contract, Item, Move, PriceRow, ScanResult, money_score, template_move
+from maxx.guardrails import has_link, looks_like_instruction
+from maxx.matching import CATALOG, match_item
+from maxx.providers import ProviderError, chat, log_guard, request
+from maxx.scan import (
+    Contract,
+    Identity,
+    Item,
+    Move,
+    PriceRow,
+    ScanResult,
+    VisionItem,
+    money_score,
+    template_move,
+)
+
+SALES = re.compile(
+    r"\b(?:subscribe|sign up|signup|newsletter|coupon|promo code|discount code|password|card "
+    r"number|call us|email us|contact us|click|download|install|follow us|gift card)\b",
+    re.I,
+)
+INJECTED_PAGE = "A page with text aimed at AI tools was left out of the score. Check it by hand."
 
 
 class Rows(Contract):
@@ -26,7 +44,45 @@ def visible_price(price: Decimal, text: str) -> bool:
     return any(Decimal(value.replace(",", "")) == price for value in amounts)
 
 
-def ground_rows(rows: list[PriceRow], sources: list[dict]) -> list[PriceRow]:
+def words(text: str | None) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", (text or "").casefold()))
+
+
+def grounded_identity(item: Item, identity: Identity) -> bool:
+    """Every word the normaliser returns must already be on the screenshot."""
+    seen = words(item.title) | words(item.visible_text)
+    return all(words(value) <= seen for value in (identity.brand, identity.model, identity.variant))
+
+
+def check_verdict(move: Move, expected: str, item: Item) -> str | None:
+    """The first rule a model-written verdict breaks, or None. It may only explain the one move."""
+    text = move.headline + " " + move.explanation
+    if move.primary != expected:
+        return "verdict_move"
+    if re.search(r"\d|\$|%|percent", text, re.I):
+        return "verdict_numbers"
+    if has_link(text) or looks_like_instruction(text):
+        return "verdict_link_or_instruction"
+    if SALES.search(text):
+        return "verdict_offer"
+    known = words(" ".join(filter(None, [item.title, item.brand, item.model, item.merchant])))
+    brands = {p.brand.casefold() for p in CATALOG}
+    for sentence in re.split(r"[.!?]+\s*", text):
+        for i, word in enumerate(re.findall(r"[A-Za-z][\w-]*", sentence)):
+            if words(word) <= known:
+                continue
+            # Names must come from the input: a known brand anywhere, a capitalised word that
+            # does not start a sentence, or a mixed-case product name such as "iPhone".
+            name = i > 0 and word[0].isupper() or re.search(r"[a-z][A-Z]", word)
+            if name or word.casefold() in brands:
+                return "verdict_unknown_name"
+    return None
+
+
+def ground_rows(
+    rows: list[PriceRow], sources: list[dict], fired: list[str] | None = None
+) -> list[PriceRow]:
+    fired = [] if fired is None else fired
     by_url = {s["url"]: s for s in sources}
     result = []
     seen_hosts = set()
@@ -40,6 +96,13 @@ def ground_rows(rows: list[PriceRow], sources: list[dict]) -> list[PriceRow]:
             continue
         if row.evidence not in text or not row.evidence:
             continue
+        if has_link(row.title) or looks_like_instruction(row.title + " " + row.evidence):
+            fired.append("row_instruction")
+            continue
+        if looks_like_instruction(text):
+            # The page talks to the model, so nothing it says about price or stock is trusted.
+            fired.append("page_instruction")
+            row.same_item = False
         # Explicitly reject non-retail condition and ungrounded shipping/stock claims.
         if re.search(
             r"\b(refurbished|renewed|used|out of stock|sold out|per month|"
@@ -73,17 +136,39 @@ def price_cache_key(item, history=False):
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
 
-async def comparable_prices(client, item, request_id, calls, history=False):
+def flag_outliers(rows: list[PriceRow], price: Decimal | None, warnings: list[str]) -> list[str]:
+    """A new item at under half the scanned price is almost never the same offer."""
+    fired = []
+    for row in rows:
+        if price and row.same_item and row.price < price / 2:
+            row.same_item = False
+            fired.append("price_outlier")
+    if fired:
+        warnings.append(
+            "A listing far below your price looks too good to be true and was left out of the "
+            "score. Check it by hand."
+        )
+    return fired
+
+
+async def comparable_prices(client, item, request_id, calls, history=False, warnings=None):
+    warnings = [] if warnings is None else warnings
     query = " ".join(filter(None, [item.brand, item.model, item.variant, item.title]))[:400] + (
         " USD price history deal buy new" if history else " USD price buy new"
     )
     cache_key = price_cache_key(item, history)
     cached = storage.get_store().cache_get(cache_key)
     if cached is not None:
-        calls.append(
-            {"provider": "tavily", "purpose": "search", "status": "cache", "latency_ms": 0}
-        )
-        return [PriceRow.model_validate(r) for r in cached]
+        try:
+            rows = [PriceRow.model_validate(r) for r in cached]
+        except ValueError:
+            rows = None  # written under older, looser limits: search again
+        if rows is not None:
+            calls.append(
+                {"provider": "tavily", "purpose": "search", "status": "cache", "latency_ms": 0}
+            )
+            log_guard(request_id, "extract", flag_outliers(rows, item.price, warnings))
+            return rows
     data = await request(
         client,
         request_id,
@@ -120,11 +205,20 @@ async def comparable_prices(client, item, request_id, calls, history=False):
         request_id,
         calls,
         "extract",
-        {"item": item.model_dump(mode="json"), "sources": sources},
+        {
+            "item": item.model_dump(
+                mode="json", include={"title", "brand", "model", "variant", "qty", "currency"}
+            ),
+            "sources": sources,
+        },
         Rows,
     )
-    rows = ground_rows(parsed.rows, sources)
+    fired = []
+    rows = ground_rows(parsed.rows, sources, fired)
+    if "page_instruction" in fired or "row_instruction" in fired:
+        warnings.append(INJECTED_PAGE)
     storage.get_store().cache_put(cache_key, [r.model_dump(mode="json") for r in rows])
+    log_guard(request_id, "extract", fired + flag_outliers(rows, item.price, warnings))
     return rows
 
 
@@ -177,34 +271,52 @@ async def run_scan(
                 calls,
                 "vision",
                 {"screenshot": "the attached image"},
-                Item,
+                VisionItem,
                 "data:" + mime + ";base64," + base64.b64encode(data).decode(),
             )
-            if item.price is not None and not visible_price(item.price, item.visible_text):
+            item = Item.model_validate(item.model_dump())
+            if looks_like_instruction(item.visible_text):
                 item.price = None
+                log_guard(request_id, "vision", ["screenshot_instruction"])
+                warnings.append(
+                    "The screenshot contains text aimed at AI tools, so its price was not read "
+                    "automatically. Enter the price to continue."
+                )
+            elif item.price is not None and not visible_price(item.price, item.visible_text):
+                item.price = None
+                log_guard(request_id, "vision", ["price_not_visible"])
                 warnings.append("The extracted price lacked visible USD evidence and was removed.")
-            normalised = await chat(
-                client,
-                request_id,
-                calls,
-                "normalise",
-                item.model_dump(
-                    mode="json", include={"title", "brand", "model", "variant", "visible_text"}
-                ),
-                Item,
-                label="item",
-            )
-            item.brand, item.model, item.variant = (
-                normalised.brand,
-                normalised.model,
-                normalised.variant,
-            )
+            try:
+                normalised = await chat(
+                    client,
+                    request_id,
+                    calls,
+                    "normalise",
+                    item.model_dump(
+                        mode="json", include={"title", "brand", "model", "variant", "visible_text"}
+                    ),
+                    Identity,
+                    label="item",
+                )
+            except ProviderError:
+                normalised = None
+            if normalised is not None and grounded_identity(item, normalised):
+                # A null means the model was unsure, so the screenshot's own value stays.
+                item.brand = normalised.brand or item.brand
+                item.model = normalised.model or item.model
+                item.variant = normalised.variant or item.variant
+            else:
+                if normalised is not None:
+                    log_guard(request_id, "normalise", ["identity_not_on_screenshot"])
+                warnings.append(
+                    "Kept the names read from the screenshot; the tidied names were not usable."
+                )
             if corrections:
                 item = item.model_copy(update=corrections)
             rows = []
             if item.title and item.price and item.currency == "USD":
                 try:
-                    rows = await comparable_prices(client, item, request_id, calls)
+                    rows = await comparable_prices(client, item, request_id, calls, False, warnings)
                 except ProviderError:
                     warnings.append(
                         "Price search failed. Try scanning again; no score was inferred."
@@ -225,13 +337,14 @@ async def run_scan(
                         },
                         Move,
                     )
-                    if candidate.primary == move.primary and not re.search(
-                        r"\d|\$|%", candidate.headline + candidate.explanation
-                    ):
+                    broken = check_verdict(candidate, move.primary, item)
+                    if broken is None:
                         move = candidate
                     else:
+                        log_guard(request_id, "verdict", [broken])
                         warnings.append(
-                            "Verdict failed the numbers check; using the deterministic template."
+                            "The written verdict failed a safety check; using the deterministic "
+                            "template."
                         )
                 except ProviderError:
                     warnings.append("Verdict model failed; using the deterministic template.")

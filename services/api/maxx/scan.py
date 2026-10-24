@@ -3,10 +3,12 @@
 import io
 import warnings
 from decimal import ROUND_HALF_EVEN, Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+from maxx.guardrails import Plain
 
 MAX_UPLOAD = 8 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 16_000_000
@@ -18,25 +20,48 @@ class Contract(BaseModel):
 
 class Item(Contract):
     title: str | None = Field(default=None, max_length=300)
-    brand: str | None = None
-    model: str | None = None
-    variant: str | None = None
+    brand: str | None = Field(default=None, max_length=80)
+    model: str | None = Field(default=None, max_length=80)
+    variant: str | None = Field(default=None, max_length=80)
     price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
-    currency: str | None = None
-    merchant: str | None = None
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    merchant: str | None = Field(default=None, max_length=120)
     qty: int = Field(default=1, ge=1, le=1000)
     confidence: float = Field(default=0, ge=0, le=1)
-    visible_text: str = Field(default="", max_length=12000)
+    visible_text: str = Field(default="", max_length=4000)
+
+
+Name = Annotated[str | None, Plain, Field(default=None, max_length=80)]
+
+
+class VisionItem(Item):
+    """What the vision model may return: USD or nothing, and names with no links or instructions.
+    visible_text is the screenshot's own words, so it is checked after the call instead."""
+
+    title: Annotated[str | None, Plain, Field(default=None, max_length=300)]
+    brand: Name
+    model: Name
+    variant: Name
+    currency: Literal["USD"] | None = None
+    merchant: Annotated[str | None, Plain, Field(default=None, max_length=120)]
+
+
+class Identity(Contract):
+    """The normaliser's whole answer. It cannot touch price, currency, merchant or anything else."""
+
+    brand: Name
+    model: Name
+    variant: Name
 
 
 class PriceRow(Contract):
-    title: str = Field(max_length=300)
+    title: str = Field(max_length=200)
     url: HttpUrl
     price: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     shipping: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     same_item: bool = False
     in_stock: bool = False
-    evidence: str = Field(default="", max_length=1000)
+    evidence: str = Field(default="", max_length=300)
 
 
 class Score(Contract):
@@ -50,8 +75,8 @@ class Score(Contract):
 
 class Move(Contract):
     primary: Literal["CHEAPER", "WAIT", "SKIP", "JOIN_BLOC"]
-    headline: str = Field(max_length=160)
-    explanation: str = Field(max_length=600)
+    headline: Annotated[str, Plain, Field(max_length=120)]
+    explanation: Annotated[str, Plain, Field(max_length=400)]
 
 
 class CallRecord(Contract):

@@ -56,6 +56,21 @@ def log_call(record: dict):
     storage.get_store().log_call(value)
 
 
+def log_guard(request_id, role: str, rules: list[str]):
+    """Record that a plain-code check changed or refused a model's answer. Rule names only."""
+    if rules:
+        log_call(
+            {
+                "request_id": request_id,
+                "provider": "guard",
+                "purpose": role,
+                "status": "flagged",
+                "guard": sorted(set(rules)),
+                "latency_ms": 0,
+            }
+        )
+
+
 async def request(client, request_id, calls, provider, purpose, url, payload=None, parse=None):
     start = time.perf_counter()
     record = {

@@ -203,7 +203,7 @@ def test_live_transport_schema_retry_and_logging(monkeypatch, tmp_path):
                     }
                 )
             else:
-                content = vision.model_dump_json()
+                content = vision.model_dump_json(include={"brand", "model", "variant"})
         else:
             # Hallucinated numbers must trigger the safe template.
             content = json.dumps(
