@@ -131,7 +131,7 @@ async def start(runtime, user) -> dict:
             payment = await money.start_hold(current, buyer, maximum)
             simulator.approve(payment["order_id"])
             await money.authorize_hold(runtime.store, buyer, payment["order_id"])
-        await runtime.start(bloc_id)
+        await runtime.start(bloc_id, starter=user.id)
     except Exception:
         # Never leave a half-built demo open: end it so the settlement worker releases any hold.
         await _abandon(runtime, bloc_id, seller["id"], offer["id"])

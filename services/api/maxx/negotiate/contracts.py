@@ -98,11 +98,13 @@ class BlocView(Contract):
 class Bloc(BlocView):
     sellers: list[Seller] = Field(default_factory=list)
     owner_id: str | None = None
+    # Who a live negotiation is charged to when the Bloc has no creator (the person who started it).
+    charged_to: str | None = None
 
     def public_base(self) -> dict:
         """The redacted view as plain JSON data, shown to someone who is not in this Bloc.
         Seller private fields and account ids never appear: members are opaque ids."""
-        value = self.model_dump(mode="json", exclude={"sellers", "owner_id"})
+        value = self.model_dump(mode="json", exclude={"sellers", "owner_id", "charged_to"})
         for member in value["members"]:
             member["user_id"] = member["id"]
         value["viewer_is_owner"] = False

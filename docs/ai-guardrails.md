@@ -104,7 +104,7 @@ A hold must fit inside **every** limit that applies, in one transaction, or the 
 | Today (UTC) | `AI_DAILY_BUDGET_USD` | $0.40 | Everything except live checks |
 | People today | daily minus the negotiation share | $0.20 | All scans and matches by people |
 | Negotiations today | `AI_NEGOTIATION_DAILY_BUDGET_USD` | $0.20 | Negotiations and their market refresh |
-| One person's Blocs | `AI_OWNER_NEGOTIATION_DAILY_BUDGET_USD` | $0.10 | Negotiations of Blocs one person created |
+| One person's Blocs | `AI_OWNER_NEGOTIATION_DAILY_BUDGET_USD` | $0.10 | Negotiations charged to one person: the Bloc's creator, else whoever started it; a timed close of a Bloc nobody created shares one bucket per kind of Bloc |
 | Visitors today | `AI_ANONYMOUS_DAILY_BUDGET_USD` | $0.08 | Everyone not signed in, together |
 | One address | `AI_ADDRESS_DAILY_BUDGET_USD` | $0.02 | One visitor's address (stored as a keyed hash) |
 | One person | `AI_USER_DAILY_BUDGET_USD` / `AI_PREMIUM_USER_DAILY_BUDGET_USD` | $0.05 / $0.25 | One signed-in person |

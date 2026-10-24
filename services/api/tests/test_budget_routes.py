@@ -251,3 +251,41 @@ def test_catalogue_matching_follows_the_sign_in_rule(monkeypatch):
     assert sent == []
     assert response.status_code == 503
     assert "sign in to use live AI" in response.json()["detail"]
+
+
+def test_a_negotiation_is_always_charged_to_a_responsible_person(monkeypatch, tmp_path):
+    from maxx.negotiate.adapters import FixtureAdapter
+    from maxx.negotiate.routes import Runtime
+    from maxx.negotiate.store import BlocStore
+
+    seen = []
+
+    class Live(FixtureAdapter):
+        mode = "live"
+
+        async def negotiator(self, context):
+            seen.append(budget.current().payer.owner)
+            return await super().negotiator(context)
+
+    from maxx.negotiate import routes
+
+    async def no_market(*args):
+        return None
+
+    monkeypatch.setattr(routes, "refresh_market", no_market)
+    runtime = Runtime(BlocStore(f"sqlite:///{tmp_path}/r.sqlite"), "live", 0, Live)
+    runtime.seed()
+    # A demo Bloc has no creator: the person who starts it is charged.
+    asyncio.run(runtime.start("demo-success", starter="u-starter"))
+    asyncio.run(runtime.tick())
+    for _ in range(50):
+        if runtime.store.get("demo-success").status != "NEGOTIATING":
+            break
+        asyncio.run(asyncio.sleep(0.05))
+    assert set(seen) == {"u-starter"}
+    from maxx.negotiate.routes import negotiation_owner
+
+    bloc = runtime.store.get("demo-failure")
+    assert negotiation_owner(bloc) == "origin:demand"  # a timed close of an ownerless Bloc
+    bloc.owner_id = "u-owner"
+    assert negotiation_owner(bloc) == "u-owner"

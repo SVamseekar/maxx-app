@@ -248,7 +248,7 @@ def test_a_tour_bloc_is_private_and_closed_to_real_buyers(runtime, tour_on):  # 
         sign_up(buyer, "buyer@example.com", "Bea")
         # Hold the negotiation back so the Bloc is still open when the buyer tries.
         start = runtime.start
-        runtime.start = lambda bloc_id: asyncio.sleep(0)
+        runtime.start = lambda bloc_id, starter="": asyncio.sleep(0)
         try:
             bloc_id = judge.post("/demo/seller-tour").json()["bloc_id"]
         finally:
@@ -291,7 +291,7 @@ def test_demo_and_real_sellers_never_cross(runtime, tour_on):  # noqa: F811
         sign_up(seller, "seller@example.com", "Sam")
         onboard(seller)
         start = runtime.start
-        runtime.start = lambda bloc_id: asyncio.sleep(0)
+        runtime.start = lambda bloc_id, starter="": asyncio.sleep(0)
         try:
             bloc_id = judge.post("/demo/seller-tour").json()["bloc_id"]
         finally:

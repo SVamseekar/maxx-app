@@ -21,7 +21,7 @@ from maxx.matching import MatchResult, get_matcher
 from maxx.negotiate.adapters import FixtureAdapter, NebiusAdapter
 from maxx.negotiate.blocs import add_member, leave_member, make_bloc, transition
 from maxx.negotiate.contracts import BlocView, Contract, Money
-from maxx.negotiate.runner import run_negotiation, terminal_failure
+from maxx.negotiate.runner import negotiation_owner, run_negotiation, terminal_failure
 from maxx.negotiate.store import BlocStore, Conflict
 from maxx.negotiate.stream import event_frames
 from maxx.providers import BudgetExceeded, ProviderError
@@ -84,7 +84,7 @@ class Runtime:
                 )
                 self.store.save(b)
 
-    async def start(self, id):
+    async def start(self, id, starter: str = ""):
         async with self.lock:
             b = self.store.get(id)
             if b.status in {"NEGOTIATING", "SETTLED", "FAILED"}:
@@ -94,7 +94,9 @@ class Runtime:
             if self.mode == "fixture":
                 adapter = self.adapter_factory() if self.adapter_factory else FixtureAdapter()
             elif self.mode == "live":
-                budget.negotiation_worst_ok(b.owner_id or "")
+                if starter and not b.owner_id:
+                    b.charged_to = starter
+                budget.negotiation_worst_ok(negotiation_owner(b))
                 adapter = self.adapter_factory() if self.adapter_factory else NebiusAdapter(id)
                 if not self.adapter_factory:
                     await adapter.verify()
@@ -102,7 +104,7 @@ class Runtime:
                 raise ProviderError("NEGOTIATION_MODE must be fixture or live.")
             if b.origin == "demand":
                 # A seller's listing or the demo tour has no comparable-price research to refresh.
-                payer = budget.Payer("system", "market:" + id, owner=b.owner_id or "")
+                payer = budget.Payer("system", "market:" + id, owner=negotiation_owner(b))
                 with budget.payer_scope(payer, settings.ai_max_calls_per_scan):
                     await refresh_market(b, self.mode, adapter.calls)
             b.mode = self.mode
@@ -475,7 +477,7 @@ async def start_bloc(id: str, runtime: RuntimeDep, user: CurrentUser):
         raise HTTPException(403, "Join this Bloc before closing it.")
     ratelimit.hit(f"bloc:{user.id}", settings.bloc_actions_per_hour, 3600)
     try:
-        await runtime.start(id)
+        await runtime.start(id, starter=user.id)
         return get_bloc(runtime, id).public(user.id)
     except ProviderError as exc:
         raise HTTPException(503, str(exc)) from None

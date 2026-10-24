@@ -32,6 +32,12 @@ def terminal_failure(bloc: Bloc, reason: str):
     emit(bloc, "failed", reason=reason, simulated=True)
 
 
+def negotiation_owner(bloc: Bloc) -> str:
+    """Who a live negotiation is charged to: the creator, else whoever started it, else a shared
+    bucket for Blocs of that kind. Never nobody."""
+    return bloc.owner_id or bloc.charged_to or "origin:" + bloc.origin
+
+
 async def run_negotiation(
     store: BlocStore,
     id: str,
@@ -40,7 +46,7 @@ async def run_negotiation(
     deadline: float | None = None,
 ):
     # Every model call in one negotiation is the system's, under one call cap.
-    payer = budget.Payer("system", "negotiation:" + id, owner=store.get(id).owner_id or "")
+    payer = budget.Payer("system", "negotiation:" + id, owner=negotiation_owner(store.get(id)))
     with budget.payer_scope(payer, settings.ai_max_calls_per_negotiation):
         await _negotiate(store, id, adapter, round_delay, deadline)
 
