@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     ai_negotiation_worst_usd: str = "0.10"
     # Part of each day kept for negotiations; people's scans and matches share the rest.
     ai_negotiation_daily_budget_usd: str = "0.20"
+    ai_owner_negotiation_daily_budget_usd: str = "0.10"  # per Bloc creator, within that share
+    ai_verify_budget_usd: str = "1"  # the most one `make verify-guardrails` run may spend
     tavily_monthly_credits: int = Field(default=900, ge=0)
     tavily_daily_credits: int = Field(default=40, ge=0)
     bloc_open_seconds: int = Field(default=3600, ge=5, le=604800)

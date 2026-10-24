@@ -32,6 +32,7 @@ class Payer:
     kind: str  # user | anonymous | system
     key: str = ""  # user id, a keyed hash of the address, or what the system is doing
     premium: bool = False
+    owner: str = ""  # for a negotiation: the person who created the Bloc
 
 
 @dataclass
@@ -54,12 +55,12 @@ def payer_scope(payer: Payer, max_calls: int):
         _scope.reset(token)
 
 
-def negotiation_worst_ok(now: float | None = None):
+def negotiation_worst_ok(owner: str = "", now: float | None = None):
     """Refuse to start a live negotiation that today's budget could not finish."""
     if _paused():
         raise BudgetExceeded(PAUSED)
     need = Decimal(settings.ai_negotiation_worst_usd)
-    if remaining_for(Payer("system", "negotiation:check"), now) < need:
+    if remaining_for(Payer("system", "negotiation:check", owner=owner), now) < need:
         raise BudgetExceeded(
             "Live AI is paused: not enough of today's AI budget is left to run a negotiation. "
             "It resets at 00:00 UTC."
@@ -107,8 +108,20 @@ def _day(now: float) -> str:
 
 def _limits(payer: Payer, now: float) -> list[tuple[str, str, int, str]]:
     day = _day(now)
+    total = ("total", "all", _usd(settings.ai_budget_usd), "the total AI budget is used up.")
+    if payer.key.startswith("verify:"):
+        # An operator's live check: its own small cap, outside the day kept for people.
+        return [
+            total,
+            (
+                payer.key,
+                "all",
+                _usd(settings.ai_verify_budget_usd),
+                "the live check's budget is used up.",
+            ),
+        ]
     limits = [
-        ("total", "all", _usd(settings.ai_budget_usd), "the total AI budget is used up."),
+        total,
         (
             "day",
             day,
@@ -131,6 +144,17 @@ def _limits(payer: Payer, now: float) -> list[tuple[str, str, int, str]]:
                 "today's AI budget for negotiations is used up. It resets at 00:00 UTC.",
             )
         )
+        if payer.owner:
+            # One person's Blocs cannot use up the share every other Bloc relies on.
+            limits.append(
+                (
+                    "owner_negotiation_day:" + payer.owner,
+                    day,
+                    _usd(settings.ai_owner_negotiation_daily_budget_usd),
+                    "today's AI allowance for negotiations of Blocs you started is used up. It "
+                    "resets at 00:00 UTC.",
+                )
+            )
     if payer.kind == "anonymous":
         visitors = (
             "today's allowance for visitors who are not signed in is used up. Sign in to keep "

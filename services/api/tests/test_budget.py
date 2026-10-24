@@ -292,3 +292,12 @@ def test_visitors_are_refused_everywhere_when_sign_in_is_required(monkeypatch):
     with pytest.raises(BudgetExceeded, match="sign in to use live AI"):
         hold(ANON, "0.001")
     assert hold(USER, "0.001")
+
+
+def test_one_bloc_owner_cannot_spend_the_whole_negotiation_share(monkeypatch):
+    monkeypatch.setattr(settings, "ai_owner_negotiation_daily_budget_usd", "0.10")
+    owner = Payer("system", "negotiation:b1", owner="u1")
+    hold(owner, "0.08")
+    with pytest.raises(BudgetExceeded, match="Blocs you started"):
+        hold(Payer("system", "negotiation:b2", owner="u1"), "0.05")
+    hold(Payer("system", "negotiation:b3", owner="u2"), "0.05")  # others keep their share

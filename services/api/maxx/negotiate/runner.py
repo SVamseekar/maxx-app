@@ -40,7 +40,7 @@ async def run_negotiation(
     deadline: float | None = None,
 ):
     # Every model call in one negotiation is the system's, under one call cap.
-    payer = budget.Payer("system", "negotiation:" + id)
+    payer = budget.Payer("system", "negotiation:" + id, owner=store.get(id).owner_id or "")
     with budget.payer_scope(payer, settings.ai_max_calls_per_negotiation):
         await _negotiate(store, id, adapter, round_delay, deadline)
 

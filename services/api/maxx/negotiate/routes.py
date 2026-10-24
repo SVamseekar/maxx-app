@@ -94,7 +94,7 @@ class Runtime:
             if self.mode == "fixture":
                 adapter = self.adapter_factory() if self.adapter_factory else FixtureAdapter()
             elif self.mode == "live":
-                budget.negotiation_worst_ok()
+                budget.negotiation_worst_ok(b.owner_id or "")
                 adapter = self.adapter_factory() if self.adapter_factory else NebiusAdapter(id)
                 if not self.adapter_factory:
                     await adapter.verify()
@@ -102,9 +102,8 @@ class Runtime:
                 raise ProviderError("NEGOTIATION_MODE must be fixture or live.")
             if b.origin == "demand":
                 # A seller's listing or the demo tour has no comparable-price research to refresh.
-                with budget.payer_scope(
-                    budget.Payer("system", "market:" + id), settings.ai_max_calls_per_scan
-                ):
+                payer = budget.Payer("system", "market:" + id, owner=b.owner_id or "")
+                with budget.payer_scope(payer, settings.ai_max_calls_per_scan):
                     await refresh_market(b, self.mode, adapter.calls)
             b.mode = self.mode
             from maxx.sellers import store as seller_store

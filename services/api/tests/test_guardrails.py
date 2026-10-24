@@ -111,3 +111,51 @@ def test_data_is_one_labelled_json_object_that_cannot_be_escaped():
     text = data_message("item", {"title": hostile})
     parsed = json.loads(text)
     assert parsed == {"item": {"title": hostile}}
+
+
+def test_the_live_check_plan_covers_every_model_and_stays_under_one_dollar():
+    from decimal import Decimal
+
+    from maxx import verify_guardrails
+    from maxx.config import settings
+
+    plan = verify_guardrails.plan()
+    models = {step["model"] for step in plan}
+    assert {
+        settings.model_vision,
+        settings.model_fast,
+        settings.model_reason,
+        settings.model_negotiator,
+        settings.model_embed,
+        "nvidia/Nemotron-3.5-Super-VL",
+    } <= models
+    assert all(Decimal(step["worst_usd"]) > 0 for step in plan)
+    assert sum(Decimal(step["worst_usd"]) for step in plan) < Decimal("1")
+    # Each Nemotron model is probed with thinking switched off in each documented way.
+    probes = [s for s in plan if s["check"].startswith("reasoning")]
+    assert {s["variant"] for s in probes} >= {"none", "chat_template_kwargs", "reasoning_effort"}
+
+
+def test_the_live_check_never_runs_without_explicit_confirmation(capsys):
+    import pytest as _pytest
+
+    from maxx import verify_guardrails
+
+    with _pytest.raises(SystemExit) as stopped:
+        verify_guardrails.main(["--run"])
+    assert stopped.value.code == 2
+    assert "--yes" in capsys.readouterr().out
+
+
+def test_a_verification_run_has_its_own_one_dollar_cap(monkeypatch):
+    from decimal import Decimal
+
+    import pytest as _pytest
+
+    from maxx import budget
+    from maxx.providers import BudgetExceeded
+
+    with budget.payer_scope(budget.Payer("system", "verify:run1"), 100):
+        budget.reserve("v", "probe", Decimal("0.90"))
+        with _pytest.raises(BudgetExceeded, match="live check"):
+            budget.reserve("v", "probe", Decimal("0.20"))

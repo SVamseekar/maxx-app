@@ -28,6 +28,11 @@ check:
 smoke:
 	npm run smoke
 
+.PHONY: verify-guardrails
+# Prints the planned live calls and their worst case. Add RUN="--run --yes" to spend real credit.
+verify-guardrails:
+	$(UV) run --locked python -m maxx.verify_guardrails $(RUN)
+
 .PHONY: evaluate evaluate-live
 evaluate:
 	$(UV) run --locked python -m maxx.evaluate --mode fixture
