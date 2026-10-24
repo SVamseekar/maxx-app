@@ -1,7 +1,7 @@
 /** The admin console's view of the AI spending cap. Pure, so it is tested without a browser. */
 export type Bucket = { cap_usd: string; spent_usd: string; reserved_usd: string; remaining_usd: string };
 export type Credits = { cap_credits: string; spent_credits: string; reserved_credits: string; remaining_credits: string };
-export type AiBudget = { total: Bucket; day: Bucket; anonymous_day: Bucket; tavily_month: Credits; tavily_day: Credits };
+export type AiBudget = { total: Bucket; day: Bucket; anonymous_day: Bucket; negotiation_day: Bucket; tavily_month: Credits; tavily_day: Credits };
 export type AiRole = { calls: number; refused: number; rejected: number; cost_usd: string };
 export type AiOverview = { paused: boolean; budget: AiBudget; roles: Record<string, AiRole>; guards: Record<string, number> };
 
@@ -16,6 +16,7 @@ export function aiSpendRows(budget: AiBudget) {
     dollars("Total", budget.total),
     dollars("Today", budget.day),
     dollars("Visitors today", budget.anonymous_day),
+    dollars("Negotiations today", budget.negotiation_day),
     credits("Web search this month", budget.tavily_month),
     credits("Web search today", budget.tavily_day),
   ];
