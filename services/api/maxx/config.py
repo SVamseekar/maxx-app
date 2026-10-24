@@ -214,6 +214,7 @@ class Settings(BaseSettings):
     apple_jwks_url: str = "https://appleid.apple.com/auth/keys"
     scan_rate_anonymous_per_hour: int = Field(default=30, ge=1)
     scan_rate_user_per_hour: int = Field(default=120, ge=1)
+    match_rate_per_hour: int = Field(default=120, ge=1)
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
     @field_validator("demo_tools", "docs_enabled", mode="before")

@@ -3,6 +3,7 @@
 import asyncio
 import json
 
+from maxx import budget
 from maxx.matching import NebiusMatcher
 from maxx.providers import ProviderError
 from maxx.scan import Item
@@ -25,4 +26,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # A verification run is the operator's own spend, capped like any request.
+    with budget.payer_scope(budget.Payer("system", "verify"), 20):
+        asyncio.run(main())

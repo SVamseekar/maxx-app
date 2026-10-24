@@ -54,7 +54,7 @@ def role_of(body):
     return next(name for name, role in ROLES.items() if role.job in system)
 
 
-def live_scan(monkeypatch, answers, sources=None):
+def live_scan(monkeypatch, answers, sources=None, client=None):
     """Run one live scan. `answers[role]` is a reply string, or a list of replies in turn."""
     from maxx import flow
     from maxx.config import settings
@@ -102,7 +102,8 @@ def live_scan(monkeypatch, answers, sources=None):
         "AsyncClient",
         lambda **kw: original(transport=httpx.MockTransport(transport), **kw),
     )
-    response = TestClient(app).post("/scan", content=png(), headers={"content-type": "image/png"})
+    client = client or TestClient(app)
+    response = client.post("/scan", content=png(), headers={"content-type": "image/png"})
     return response, seen
 
 

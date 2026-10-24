@@ -3,7 +3,7 @@
 import asyncio
 from decimal import Decimal
 
-from maxx import audit
+from maxx import audit, budget
 from maxx.config import settings
 from maxx.negotiate.adapters import (
     Adapter,
@@ -39,6 +39,13 @@ async def run_negotiation(
     round_delay: float | None = None,
     deadline: float | None = None,
 ):
+    # Every model call in one negotiation is the system's, under one call cap.
+    payer = budget.Payer("system", "negotiation:" + id)
+    with budget.payer_scope(payer, settings.ai_max_calls_per_negotiation):
+        await _negotiate(store, id, adapter, round_delay, deadline)
+
+
+async def _negotiate(store, id, adapter, round_delay, deadline):
     bloc = store.get(id)
     if bloc.status != "NEGOTIATING":
         return

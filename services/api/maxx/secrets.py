@@ -62,3 +62,11 @@ def encrypt(plaintext: str, purpose: str) -> str:
 def decrypt(token: str, purpose: str) -> str:
     raw = base64.urlsafe_b64decode(token.encode())
     return AESGCM(_key(purpose)).decrypt(raw[:12], raw[12:], purpose.encode()).decode()
+
+
+def keyed_hash(value: str, purpose: str) -> str:
+    """A stable, unguessable label for `value` (an address, say) that cannot be reversed."""
+    import hashlib
+    import hmac
+
+    return hmac.new(_key(purpose), value.encode(), hashlib.sha256).hexdigest()[:32]

@@ -126,6 +126,10 @@ from maxx.transparency import router as transparency_router  # noqa: E402
 
 app.include_router(transparency_router)
 
+from maxx.ai_routes import router as ai_router  # noqa: E402
+
+app.include_router(ai_router)
+
 from maxx.auth import routes as auth_routes  # noqa: E402
 from maxx.auth import routes_security  # noqa: E402
 

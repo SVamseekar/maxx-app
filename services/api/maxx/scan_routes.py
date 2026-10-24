@@ -5,11 +5,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
+from maxx import budget
 from maxx.auth import ratelimit
 from maxx.auth.deps import OptionalUser, client_ip, same_origin
 from maxx.config import settings
 from maxx.flow import run_scan
-from maxx.providers import ProviderError
+from maxx.providers import BudgetExceeded, ProviderError
 from maxx.scan import MAX_UPLOAD, Item, ScanError, ScanResult, validate_image
 
 router = APIRouter(dependencies=[Depends(same_origin)])
@@ -58,9 +59,13 @@ async def scan(
             corrections["price"] = Item(price=price).price
             corrections["currency"] = "USD"
         if merchant is not None:
-            corrections["merchant"] = merchant[:300]
+            corrections["merchant"] = merchant[:120]
+        if settings.scan_mode == "live" and not user and not settings.ai_anonymous_live:
+            raise BudgetExceeded("Live AI is paused: sign in to run a live scan.")
+        payer = budget.payer_for(user, client_ip(request))
         async with asyncio.timeout(100):
-            return await run_scan(bytes(data), mime, owns_similar, request_id, corrections)
+            with budget.payer_scope(payer, settings.ai_max_calls_per_scan):
+                return await run_scan(bytes(data), mime, owns_similar, request_id, corrections)
     except ValueError:
         return JSONResponse(
             {
@@ -72,6 +77,11 @@ async def scan(
                 "request_id": request_id,
             },
             status_code=422,
+        )
+    except BudgetExceeded as exc:
+        return JSONResponse(
+            {"code": "ai_paused", "message": str(exc), "request_id": request_id},
+            status_code=503,
         )
     except (ProviderError, TimeoutError) as exc:
         message = str(exc) if isinstance(exc, ProviderError) else "Scan timed out. Try again."

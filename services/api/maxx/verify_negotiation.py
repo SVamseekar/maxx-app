@@ -4,6 +4,7 @@ import asyncio
 import json
 import uuid
 
+from maxx import budget
 from maxx.negotiate.adapters import NebiusAdapter, safe_offer, seller_context
 from maxx.negotiate.contracts import Seller
 from maxx.providers import ProviderError
@@ -50,4 +51,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # A verification run is the operator's own spend, capped like any request.
+    with budget.payer_scope(budget.Payer("system", "verify"), 20):
+        asyncio.run(main())

@@ -9,6 +9,7 @@ import uuid
 import httpx2 as httpx
 from PIL import Image, ImageDraw
 
+from maxx import budget
 from maxx.config import settings
 from maxx.providers import ProviderError, chat, request
 from maxx.scan import Item
@@ -85,4 +86,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # A verification run is the operator's own spend, capped like any request.
+    with budget.payer_scope(budget.Payer("system", "verify"), 20):
+        asyncio.run(main())

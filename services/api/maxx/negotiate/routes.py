@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 
-from maxx import hardening, storage
+from maxx import budget, hardening, storage
+from maxx.auth import ratelimit
 from maxx.auth.deps import CodedError, CurrentUser, OptionalUser, client_ip, is_admin, same_origin
 from maxx.config import settings
 from maxx.market import refresh_market
@@ -23,7 +24,7 @@ from maxx.negotiate.contracts import BlocView, Contract, Money
 from maxx.negotiate.runner import run_negotiation, terminal_failure
 from maxx.negotiate.store import BlocStore, Conflict
 from maxx.negotiate.stream import event_frames
-from maxx.providers import ProviderError
+from maxx.providers import BudgetExceeded, ProviderError
 from maxx.scan import Item
 
 router = APIRouter(dependencies=[Depends(same_origin)])
@@ -93,6 +94,7 @@ class Runtime:
             if self.mode == "fixture":
                 adapter = self.adapter_factory() if self.adapter_factory else FixtureAdapter()
             elif self.mode == "live":
+                budget.negotiation_worst_ok()
                 adapter = self.adapter_factory() if self.adapter_factory else NebiusAdapter(id)
                 if not self.adapter_factory:
                     await adapter.verify()
@@ -100,7 +102,10 @@ class Runtime:
                 raise ProviderError("NEGOTIATION_MODE must be fixture or live.")
             if b.origin == "demand":
                 # A seller's listing or the demo tour has no comparable-price research to refresh.
-                await refresh_market(b, self.mode, adapter.calls)
+                with budget.payer_scope(
+                    budget.Payer("system", "market:" + id), settings.ai_max_calls_per_scan
+                ):
+                    await refresh_market(b, self.mode, adapter.calls)
             b.mode = self.mode
             from maxx.sellers import store as seller_store
 
@@ -217,6 +222,12 @@ class Runtime:
             self.close_attempts[id] = time.time()
             try:
                 await self.start(id)
+            except BudgetExceeded as exc:
+                # A timed close cannot wait for tomorrow's budget while buyers' money is held.
+                b = self.store.get(id)
+                if b.status == "OPEN":
+                    terminal_failure(b, str(exc) + " Commitments released.")
+                    self.store.save(b)
             except (ProviderError, ValueError, Conflict):
                 continue
 
@@ -302,6 +313,12 @@ def list_blocs(runtime: RuntimeDep, user: OptionalUser):
 async def create_bloc(
     body: CreateBloc, runtime: RuntimeDep, matcher: MatcherDep, user: CurrentUser
 ):
+    # Matching and the comparable-price search are the creator's AI calls.
+    with budget.payer_scope(budget.payer_for(user, ""), settings.ai_max_calls_per_scan):
+        return await _create_bloc(body, runtime, matcher, user)
+
+
+async def _create_bloc(body, runtime, matcher, user):
     title = body.title.strip()
     if len(title) < 3:
         raise HTTPException(422, "Enter an exact product title.")
@@ -514,8 +531,11 @@ async def reset_demo(runtime: RuntimeDep, user: CurrentUser):
 
 
 @router.post("/catalog/match", response_model=MatchResult)
-async def catalogue_match(body: Item, matcher: MatcherDep):
+async def catalogue_match(body: Item, matcher: MatcherDep, request: Request, user: OptionalUser):
+    address = client_ip(request)
+    ratelimit.hit(f"match:{user.id if user else address}", settings.match_rate_per_hour, 3600)
     try:
-        return await asyncio.wait_for(matcher.match(body), timeout=settings.provider_timeout)
+        with budget.payer_scope(budget.payer_for(user, address), 1):
+            return await asyncio.wait_for(matcher.match(body), timeout=settings.provider_timeout)
     except (ProviderError, TimeoutError) as exc:
         raise HTTPException(503, str(exc) or "Matching timed out.") from None

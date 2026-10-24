@@ -112,3 +112,13 @@ def sign_up(client, email="buyer@example.com", name="Buyer", password="correct h
         chosen = client.post("/auth/password/change", json={"new_password": password})
         assert chosen.status_code == 200, chosen.text
     return client.get("/auth/me").json()["user"]
+
+
+@pytest.fixture(autouse=True)
+def test_payer():
+    """Unit tests call providers directly through mock transports; give them a payer as every
+    request entry point does. Routes open their own scopes, in the server's thread."""
+    from maxx import budget
+
+    with budget.payer_scope(budget.Payer("system", "test"), 1000):
+        yield

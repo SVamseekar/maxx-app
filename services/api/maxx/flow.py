@@ -13,7 +13,7 @@ from maxx import storage
 from maxx.config import ROOT, settings
 from maxx.guardrails import has_link, looks_like_instruction
 from maxx.matching import CATALOG, match_item
-from maxx.providers import ProviderError, chat, log_guard, request
+from maxx.providers import BudgetExceeded, ProviderError, chat, log_guard, request
 from maxx.scan import (
     Contract,
     Identity,
@@ -298,6 +298,9 @@ async def run_scan(
                     Identity,
                     label="item",
                 )
+            except BudgetExceeded as exc:
+                normalised = None
+                warnings.append(str(exc))
             except ProviderError:
                 normalised = None
             if normalised is not None and grounded_identity(item, normalised):
@@ -317,6 +320,8 @@ async def run_scan(
             if item.title and item.price and item.currency == "USD":
                 try:
                     rows = await comparable_prices(client, item, request_id, calls, False, warnings)
+                except BudgetExceeded as exc:
+                    warnings.append(str(exc))
                 except ProviderError:
                     warnings.append(
                         "Price search failed. Try scanning again; no score was inferred."
@@ -346,6 +351,8 @@ async def run_scan(
                             "The written verdict failed a safety check; using the deterministic "
                             "template."
                         )
+                except BudgetExceeded as exc:
+                    warnings.append(str(exc) + " Using the deterministic verdict.")
                 except ProviderError:
                     warnings.append("Verdict model failed; using the deterministic template.")
             return finish(item, rows, owns, request_id, calls, warnings, started, move)

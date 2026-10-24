@@ -54,9 +54,36 @@ def payer_scope(payer: Payer, max_calls: int):
         _scope.reset(token)
 
 
+def negotiation_worst_ok(now: float | None = None):
+    """Refuse to start a live negotiation that today's budget could not finish."""
+    if _paused():
+        raise BudgetExceeded(PAUSED)
+    need = Decimal(settings.ai_negotiation_worst_usd)
+    if remaining_for(Payer("system", "negotiation"), now) < need:
+        raise BudgetExceeded(
+            "Live AI is paused: not enough of today's AI budget is left to run a negotiation. "
+            "It resets at 00:00 UTC."
+        )
+
+
+def payer_for(user, address: str) -> Payer:
+    """The signed-in person, or the anonymous pool keyed by a hash of the client address."""
+    if user:
+        from maxx.money import subscriptions
+
+        return Payer("user", user.id, premium=subscriptions.is_premium(user.id))
+    from maxx.secrets import keyed_hash
+
+    return Payer("anonymous", keyed_hash(address, "ai-budget-address"))
+
+
 def current() -> Scope:
-    # Work no person started (verification scripts, background refreshes) is the system's.
-    return _scope.get() or Scope(Payer("system", "background"), settings.ai_max_calls_per_scan)
+    """The payer of the call being made. Every entry point that can reach a paid provider opens a
+    payer_scope; a call outside one is refused rather than charged to nobody."""
+    scope = _scope.get()
+    if scope is None:
+        raise BudgetExceeded("Live AI is paused: this call has no payer, so it was not made.")
+    return scope
 
 
 @dataclass(frozen=True)
