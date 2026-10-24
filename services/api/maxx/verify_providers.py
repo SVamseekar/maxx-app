@@ -62,8 +62,7 @@ async def main():
                 request_id,
                 calls,
                 "vision",
-                "Read this test image. Return title, price, currency and visible_text "
-                "in JSON matching " + json.dumps(Item.model_json_schema()),
+                {"screenshot": "the attached test image"},
                 Item,
                 "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode(),
             )

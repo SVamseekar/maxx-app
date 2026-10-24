@@ -185,7 +185,7 @@ def test_live_transport_schema_retry_and_logging(monkeypatch, tmp_path):
             attempt += 1
             content = "not json" if attempt == 1 else vision.model_dump_json()
         elif body["model"] == settings.model_fast:
-            if "SOURCES=" in body["messages"][1]["content"][0]["text"]:
+            if "sources" in json.loads(body["messages"][1]["content"][0]["text"]).get("data", {}):
                 content = json.dumps(
                     {
                         "rows": [

@@ -119,21 +119,8 @@ async def comparable_prices(client, item, request_id, calls, history=False):
         client,
         request_id,
         calls,
-        "fast",
-        (
-            "Extract comparable new retail listings from SOURCES. Match exact "
-            "brand, model, capacity, size, color, bundle and quantity; ambiguous "
-            "variants have same_item=false. USD only. Each price must be explicit"
-            " in its own source text. Never treat a list price, monthly payment "
-            "or coupon-dependent price as the purchase price. Unknown "
-            "shipping=null; in_stock=true only with explicit stock evidence. "
-            "evidence must be an exact source substring. Return "
-        )
-        + json.dumps(Rows.model_json_schema())
-        + "\nITEM="
-        + item.model_dump_json()
-        + "\nSOURCES="
-        + json.dumps(sources),
+        "extract",
+        {"item": item.model_dump(mode="json"), "sources": sources},
         Rows,
     )
     rows = ground_rows(parsed.rows, sources)
@@ -189,13 +176,7 @@ async def run_scan(
                 request_id,
                 calls,
                 "vision",
-                (
-                    "Read the first product in this shopping screenshot. Extract only "
-                    "visible fields. Unit price, not cart total; USD only when explicit. "
-                    "Unreadable values=null. Include the exact visible text including "
-                    "currency and price. Do not infer a price. Return "
-                )
-                + json.dumps(Item.model_json_schema()),
+                {"screenshot": "the attached image"},
                 Item,
                 "data:" + mime + ";base64," + base64.b64encode(data).decode(),
             )
@@ -206,15 +187,12 @@ async def run_scan(
                 client,
                 request_id,
                 calls,
-                "fast",
-                (
-                    "Normalise brand, model and variant only. Preserve title, price, "
-                    "currency, merchant, qty and visible_text exactly. Return "
-                )
-                + json.dumps(Item.model_json_schema())
-                + "\n"
-                + item.model_dump_json(),
+                "normalise",
+                item.model_dump(
+                    mode="json", include={"title", "brand", "model", "variant", "visible_text"}
+                ),
                 Item,
+                label="item",
             )
             item.brand, item.model, item.variant = (
                 normalised.brand,
@@ -239,21 +217,12 @@ async def run_scan(
                         client,
                         request_id,
                         calls,
-                        "reason",
-                        (
-                            "Write a short recommendation. Use the supplied primary move exactly."
-                            " Do not add any numbers, prices, percentages, unsupported claims or "
-                            "sources. Explain only the price comparison. Return "
-                        )
-                        + json.dumps(Move.model_json_schema())
-                        + "\n"
-                        + json.dumps(
-                            {
-                                "item": item.model_dump(mode="json"),
-                                "score": score.model_dump(mode="json"),
-                                "primary": move.primary,
-                            }
-                        ),
+                        "verdict",
+                        {
+                            "item": item.model_dump(mode="json"),
+                            "score": score.model_dump(mode="json"),
+                            "primary": move.primary,
+                        },
                         Move,
                     )
                     if candidate.primary == move.primary and not re.search(

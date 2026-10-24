@@ -65,6 +65,7 @@ class CallRecord(Contract):
     latency_ms: int
     cost_status: str = "unmeasured"
     rate_date: str | None = None
+    guard: list[str] | None = None
 
 
 class ScanError(Contract):
