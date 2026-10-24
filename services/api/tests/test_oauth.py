@@ -517,6 +517,17 @@ def apple_post(client, **form):
     )
 
 
+def test_form_post_for_an_unknown_provider_is_refused_before_any_page_is_built():
+    with TestClient(app) as client:
+        for provider, status in (("evil", 404), ("x%3Cmeta%3E", 415)):
+            response = client.post(
+                f"/auth/oauth/{provider}/callback",
+                data={"code": "c", "state": "s"},
+                headers={"origin": "https://appleid.apple.com"},
+            )
+            assert response.status_code == status and "location.replace" not in response.text
+
+
 def test_apple_form_post_is_relayed_to_the_get_callback_where_every_check_runs(idp):
     with TestClient(app) as client:
         _, query = start(client, "apple", idp)

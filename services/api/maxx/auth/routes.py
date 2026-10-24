@@ -740,6 +740,8 @@ async def oauth_form_post(provider: str, request: Request) -> HTMLResponse:
     matching GET callback from a page on this origin. There the state cookie is present and every
     check runs. Nothing is trusted or acted on here.
     """
+    if provider not in oauth.registry():
+        raise HTTPException(404, "Unknown sign-in provider.")
     ratelimit.hit(f"oauth-post:{client_ip(request)}", 30, 900)
     body = (await request.body())[:8192].decode("utf-8", "replace")
     form = {k: v[0] for k, v in parse_qs(body, keep_blank_values=False).items()}
