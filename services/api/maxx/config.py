@@ -8,21 +8,21 @@ ROOT = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://maxx:maxx_local@127.0.0.1:55432/maxx"
-    # Token Factory prices per million tokens (catalog snapshot of 20 Oct 2026; Nebius's own price
-    # page renders only in the console, so re-check there). A model missing here is never called.
+    # Token Factory prices per million tokens, as its own /v1/models?verbose=true listed them on
+    # 24 Oct 2026 (images are billed as input tokens). A model missing here is never called.
     model_rates_json: str = (
         '{"nvidia/Nemotron-3_5-Lightning": {"input_usd_per_million": "0.06", '
-        '"output_usd_per_million": "0.24", "effective_date": "2026-10-20"}, '
+        '"output_usd_per_million": "0.24", "effective_date": "2026-10-24"}, '
         '"nvidia/nemotron-3-super-120b-a12b": {"input_usd_per_million": "0.30", '
-        '"output_usd_per_million": "0.90", "effective_date": "2026-10-20"}, '
+        '"output_usd_per_million": "0.90", "effective_date": "2026-10-24"}, '
         '"nvidia/Nemotron-3-Ultra-550b-a55b": {"input_usd_per_million": "1.00", '
-        '"output_usd_per_million": "3.00", "effective_date": "2026-10-20"}, '
+        '"output_usd_per_million": "3.00", "effective_date": "2026-10-24"}, '
         '"nvidia/Nemotron-3.5-Super-VL": {"input_usd_per_million": "0.30", '
-        '"output_usd_per_million": "0.90", "effective_date": "2026-10-20", "image_tokens": 1800}, '
+        '"output_usd_per_million": "0.90", "effective_date": "2026-10-24", "image_tokens": 1800}, '
         '"google/gemma-3-27b-it": {"input_usd_per_million": "0.10", '
-        '"output_usd_per_million": "0.30", "effective_date": "2026-10-20", "image_tokens": 256}, '
+        '"output_usd_per_million": "0.30", "effective_date": "2026-10-24", "image_tokens": 256}, '
         '"Qwen/Qwen3-Embedding-8B": {"input_usd_per_million": "0.01", '
-        '"output_usd_per_million": "0", "effective_date": "2026-10-20"}}'
+        '"output_usd_per_million": "0", "effective_date": "2026-10-24"}}'
     )
     # The AI spending cap. Every paid call reserves its worst-case cost against all of these first;
     # see docs/ai-guardrails.md. Amounts are US dollars as strings; days are UTC.

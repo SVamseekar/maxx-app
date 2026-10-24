@@ -153,9 +153,11 @@ which guards fired.
 | `google/gemma-3-27b-it` | $0.10 | $0.30 | 256 |
 | `Qwen/Qwen3-Embedding-8B` | $0.01 | — | — |
 
-Source: Token Factory catalog data as of 20 October 2026, through a third-party mirror, because
-Nebius's price page renders only inside the console. The Lightning, Super and Ultra prices match
-the 5 October notes. Re-check them in the console before relying on the totals.
+Source: Token Factory's own pricing, read from `GET /v1/models?verbose=true` on 24 October 2026.
+All six match the earlier notes. Images are billed as input tokens (the image price is 0); the
+Super VL per-image token count is an assumption until a live call measures it. Rate limits at the
+time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-north1), 300 and
+200,000 for Super and Ultra (us-central1), 300 and 2,000,000 for Super VL (us-north1).
 
 ## Still unverified (needs one live run)
 
@@ -167,5 +169,4 @@ Until `make verify-guardrails RUN="--run --yes"` has run, these are not confirme
 - whether Nemotron 3 Ultra still calls tools with thinking off (its model card suggests thinking
   may need to be on for tools);
 - the Super VL image token count, and whether it reads the fixture screenshots better than Gemma 3;
-- the measured cost of one scan and one negotiation round;
-- the prices above, on Nebius's own page.
+- the measured cost of one scan and one negotiation round.
