@@ -19,6 +19,7 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
 | Database leak | Passwords salted scrypt; session, reset and sign-in tokens, recovery codes and trusted-browser tokens stored as digests; authenticator seeds AES-256-GCM encrypted with a per-purpose key |
 | Replay of a one-time code | TOTP time step is claimed atomically and can never be reused; recovery codes burn on use; challenges and email links are single use |
 | Abuse and floods | Global per-address budget, hourly scan allowance, per-address and per-Bloc live-stream caps, request-size and content-type limits |
+| Prompt injection and runaway AI spend | One job per model, rules apart from data, strict typed answers checked by code, and a reserved, database-backed AI budget with a kill switch; see [AI guardrails](ai-guardrails.md) |
 | Insecure production configuration | The API refuses to start in `ENVIRONMENT=production` without https, a real `SECRET_KEY`, SMTP mail, a non-default database password and explicit `ALLOWED_HOSTS`; API docs are off |
 
 ## Controls in detail
@@ -118,6 +119,9 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
 - A seller is paid from carrier evidence, not their word: the tracking number must match the
   carrier's format and check digit, cannot be reused across orders, and new sellers are paid only
   on delivery. Returned, unscanned, failed or wrong-country parcels hold the payout for a person.
+- Every language model in Maxx has one written job and a typed answer that code checks before use,
+  and every paid AI call first holds its worst-case cost against hard limits. Both are described
+  in [AI guardrails](ai-guardrails.md).
 - A seller's AI agent cannot spend past its limits: every bid is clamped at the execution boundary
   (floor, opening price, no increase, at most 15% of the opening price per round, stock). The room
   sees only that a bid was clamped, never which limit, so floors and stock stay private.
