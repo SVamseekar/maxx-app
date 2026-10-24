@@ -539,7 +539,8 @@ async def reset_demo(runtime: RuntimeDep, user: CurrentUser):
 @router.post("/catalog/match", response_model=MatchResult)
 async def catalogue_match(body: Item, matcher: MatcherDep, request: Request, user: OptionalUser):
     address = client_ip(request)
-    ratelimit.hit(f"match:{user.id if user else address}", settings.match_rate_per_hour, 3600)
+    if settings.match_mode == "live":  # fixture matching is free; live matching is paid
+        ratelimit.hit(f"match:{user.id if user else address}", settings.match_rate_per_hour, 3600)
     try:
         with budget.payer_scope(budget.payer_for(user, address), 1):
             return await asyncio.wait_for(matcher.match(body), timeout=settings.provider_timeout)

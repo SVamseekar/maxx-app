@@ -289,3 +289,11 @@ def test_a_negotiation_is_always_charged_to_a_responsible_person(monkeypatch, tm
     assert negotiation_owner(bloc) == "origin:demand"  # a timed close of an ownerless Bloc
     bloc.owner_id = "u-owner"
     assert negotiation_owner(bloc) == "u-owner"
+
+
+def test_free_fixture_matching_is_not_rate_limited(monkeypatch):
+    monkeypatch.setattr(settings, "match_mode", "fixture")
+    monkeypatch.setattr(settings, "match_rate_per_hour", 1)
+    client = TestClient(app)
+    for _ in range(3):
+        assert client.post("/catalog/match", json={"title": "Sony"}).status_code == 200

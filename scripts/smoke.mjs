@@ -24,7 +24,7 @@ if (!unavailable) {
   assert.equal(blocked.status, 401, "joining must require an account");
   console.log("PASS accounts: providers listed, anonymous session empty, join requires sign-in");
 }
-const page = await fetch(web);
+const page = await fetch(`${web}/scan`);
 assert.equal(page.status, 200);
 assert.match(await page.text(), /Choose your shopping screenshot/);
 console.log(unavailable ? "PASS database outage propagates while API liveness stays healthy" : "PASS frontend page, API, Postgres, and frontend → API → Postgres connection");

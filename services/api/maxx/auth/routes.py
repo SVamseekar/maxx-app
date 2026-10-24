@@ -573,7 +573,10 @@ async def release_holds(runtime, user_id: str) -> None:
 
 def scrub_account_from_blocs(runtime, user_id: str) -> None:
     """Release open commitments and strip the account id from every Bloc it touched."""
-    for bloc in runtime.store.list_for_user(user_id):
+    touched = {b.id: b for b in runtime.store.list_for_user(user_id)}
+    # A negotiation may be charged to someone who never joined (the starter of the judge's tour).
+    touched.update({b.id: b for b in runtime.store.list() if b.charged_to == user_id})
+    for bloc in touched.values():
         for _ in range(3):  # a concurrent save is retried against the fresh revision
             try:
                 if bloc.status == "OPEN":
@@ -583,6 +586,8 @@ def scrub_account_from_blocs(runtime, user_id: str) -> None:
                         member.user_id = "deleted-account"
                 if bloc.owner_id == user_id:
                     bloc.owner_id = None
+                if bloc.charged_to == user_id:
+                    bloc.charged_to = None
                 runtime.store.save(bloc)
                 break
             except Conflict:

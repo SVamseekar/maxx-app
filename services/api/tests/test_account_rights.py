@@ -102,3 +102,13 @@ def test_a_finished_order_lets_the_buyer_leave_and_wipes_their_address(runtime):
         assert sellers.offers_for(record["id"]) == []
     finally:
         market.close()
+
+
+def test_closing_an_account_forgets_whom_a_negotiation_was_charged_to(runtime):
+    with TestClient(app) as client:
+        user = sign_up(client)
+        bloc = runtime.store.get("demo-failure")
+        bloc.charged_to = user["id"]  # e.g. the judge's tour: a starter who is not a member
+        runtime.store.save(bloc)
+        assert close(client).status_code == 204
+    assert runtime.store.get("demo-failure").charged_to is None
