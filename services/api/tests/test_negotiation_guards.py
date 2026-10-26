@@ -193,3 +193,29 @@ def test_a_seller_model_that_keeps_breaking_contract_costs_two_calls_per_round(t
     assert seller_calls <= 2 * len(bloc.sellers) * rounds
     retries = [e for e in bloc.events if e.type == "provider_retry"]
     assert not any(e.data.get("role") == "seller" for e in retries)
+
+
+def offered(body):
+    return [t["function"]["name"] for t in body["tools"]]
+
+
+def test_each_read_tool_is_offered_once_so_the_negotiator_must_act():
+    # Live Ultra with thinking off spent all four turns re-reading data it already had.
+    plan, sent = negotiate(
+        [
+            {"tool_calls": [tool("get_demand_curve", "{}")]},
+            {"tool_calls": [tool("get_round_results", "{}")]},
+            {"tool_calls": [tool("set_reserve", '{"price": "140"}')]},
+        ]
+    )
+    assert plan.reserve == Decimal("140") and not plan.fallback
+    assert len(sent) == 3
+    assert "get_demand_curve" in offered(sent[0])
+    assert "get_demand_curve" not in offered(sent[1]) and "get_round_results" in offered(sent[1])
+    assert offered(sent[2]) == ["set_reserve", "send_round_message", "close"]
+
+
+def test_calling_a_read_tool_that_is_no_longer_offered_is_refused():
+    plan, sent = negotiate([{"tool_calls": [tool("get_demand_curve", "{}")]}])
+    assert plan.fallback
+    assert len(sent) == 4  # two turns per attempt, one retry, then the fixed rule

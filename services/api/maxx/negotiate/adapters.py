@@ -304,6 +304,9 @@ class NebiusAdapter:
             {"role": "system", "content": system_message(role)},
             {"role": "user", "content": data_message("room", context)},
         ]
+        # Each read tool is offered until answered once: the data is already in the room, and live
+        # Ultra with thinking off otherwise spends every turn re-reading it.
+        answered = set()
         for _ in range(4):
             data = await request(
                 client,
@@ -315,7 +318,7 @@ class NebiusAdapter:
                 {
                     "model": settings.model_negotiator,
                     "messages": messages,
-                    "tools": TOOLS,
+                    "tools": [t for t in TOOLS if t["function"]["name"] not in answered],
                     "tool_choice": "required",
                     "max_tokens": role.max_tokens,
                     **reasoning_options(settings.model_negotiator),
@@ -335,10 +338,14 @@ class NebiusAdapter:
             mutating = False
             for action in actions:
                 name, args = parse_action(action)
+                if name in answered:
+                    raise InvalidTurn("tool_not_offered")
                 if name == "get_demand_curve":
                     result = context["demand"]
+                    answered.add(name)
                 elif name == "get_round_results":
                     result = context["previous_result"]
+                    answered.add(name)
                 elif name == "set_reserve":
                     plan.reserve = min(
                         Plan(reserve=args.price).reserve, Decimal(context["reserve_ceiling"])
