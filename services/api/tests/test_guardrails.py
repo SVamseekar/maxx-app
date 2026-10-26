@@ -128,6 +128,7 @@ def test_the_live_check_plan_covers_every_model_and_stays_under_one_dollar():
         settings.model_negotiator,
         settings.model_embed,
         "nvidia/Nemotron-3.5-Super-VL",
+        "google/gemma-3-27b-it",
     } <= models
     assert all(Decimal(step["worst_usd"]) > 0 for step in plan)
     assert sum(Decimal(step["worst_usd"]) for step in plan) < Decimal("1")

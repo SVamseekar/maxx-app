@@ -26,6 +26,7 @@ from maxx.providers import ProviderError, chat, model_rates, request
 from maxx.scan import VisionItem
 
 SUPER_VL = "nvidia/Nemotron-3.5-Super-VL"
+GEMMA = "google/gemma-3-27b-it"  # the non-Nemotron vision baseline
 PROBE = 'Return exactly {"ok": true} and nothing else.'
 PROBE_TOKENS = 256  # room to see reasoning appear, small enough to cost under a tenth of a cent
 VARIANTS = {
@@ -45,6 +46,10 @@ def _cost(model, chars, images, max_tokens, calls=1) -> Decimal:
     if worst is None:
         raise SystemExit(f"No rate for {model}; set MODEL_RATES_JSON first.")
     return worst * calls
+
+
+def vision_models() -> list[str]:
+    return list(dict.fromkeys((settings.model_vision, SUPER_VL, GEMMA)))
 
 
 def plan() -> list[dict]:
@@ -67,14 +72,14 @@ def plan() -> list[dict]:
     steps.append(
         {
             "check": "reasoning switch",
-            "model": settings.model_vision,
+            "model": GEMMA,
             "variant": "none",
             "calls": 1,
-            "worst_usd": _cost(settings.model_vision, 300, 0, PROBE_TOKENS),
+            "worst_usd": _cost(GEMMA, 300, 0, PROBE_TOKENS),
         }
     )
     cases = len(_fixtures())
-    for model in (settings.model_vision, SUPER_VL):
+    for model in vision_models():
         steps.append(
             {
                 "check": "vision on fixture screenshots",
@@ -155,6 +160,14 @@ async def _probe(client, model, variant, calls) -> dict:
     }
 
 
+def _same(got, want) -> bool:
+    # "799" and "799.00" are the same price.
+    try:
+        return Decimal(str(got)) == Decimal(str(want))
+    except (ArithmeticError, ValueError):
+        return str(got or "") == str(want or "")
+
+
 async def _vision(client, model, calls) -> dict:
     original = settings.model_vision
     settings.model_vision = model
@@ -179,7 +192,7 @@ async def _vision(client, model, calls) -> dict:
                 got = {"error": str(exc)}
             want = case["item"]
             checked = ["title", "brand", "price", "currency"]
-            hit = sum(str(got.get(k) or "") == str(want.get(k) or "") for k in checked)
+            hit = sum(_same(got.get(k), want.get(k)) for k in checked)
             matches, fields = matches + hit, fields + len(checked)
             cases.append(
                 {
@@ -221,9 +234,7 @@ async def run() -> dict:
             if s["check"] == "reasoning switch" and s["model"] in ids
         ]
         report["vision"] = [
-            await _vision(client, model, calls)
-            for model in (settings.model_vision, SUPER_VL)
-            if model in ids
+            await _vision(client, model, calls) for model in vision_models() if model in ids
         ]
         adapter = NebiusAdapter("verify-negotiation", client=client)
         seller = Seller(id="A", floor="120", opening_price="150", stock=2)
@@ -251,14 +262,26 @@ async def run() -> dict:
         calls += match.calls
         report["embedding"] = {"mode": match.mode, "top": match.candidates[0].product_key}
     case = _fixtures()[0]
-    scan = await run_scan((ROOT / "evals" / case["file"]).read_bytes(), "image/png", False, "v")
-    calls += [c.model_dump(mode="json") for c in scan.calls]
-    report["scan"] = {
-        "warnings": scan.warnings,
-        "rows": len(scan.rows),
-        "recommendation": scan.recommendation.primary,
-        "cost_usd": str(_spent([c.model_dump(mode="json") for c in scan.calls])),
-    }
+    # The scan step must reach the providers even when .env keeps the app on fixture replay.
+    original = settings.scan_mode
+    settings.scan_mode = "live"
+    try:
+        scan = await run_scan((ROOT / "evals" / case["file"]).read_bytes(), "image/png", False, "v")
+    except ProviderError as exc:
+        # A failed scan is a finding, not a reason to lose the report. Its spend is in the ledger.
+        scan = None
+        report["scan"] = {"file": case["file"], "error": str(exc)}
+    finally:
+        settings.scan_mode = original
+    if scan is not None:
+        calls += [c.model_dump(mode="json") for c in scan.calls]
+        report["scan"] = {
+            "file": case["file"],
+            "warnings": scan.warnings,
+            "rows": len(scan.rows),
+            "recommendation": scan.recommendation.primary,
+            "cost_usd": str(_spent([c.model_dump(mode="json") for c in scan.calls])),
+        }
     report["measured_total_usd"] = str(_spent(calls))
     return report
 
