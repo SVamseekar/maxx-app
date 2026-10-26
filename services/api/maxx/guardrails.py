@@ -191,12 +191,35 @@ ROLES = {
 }
 
 
-def system_message(role: Role, schema: dict | None = None) -> str:
+def wire_schema(model) -> dict:
+    """The JSON schema sent to the provider. Pydantic's Decimal `pattern` uses a regex lookahead
+    that Nebius's grammar engine cannot compile (HTTP 500), and titles and docstrings are notes
+    for us, so all three are dropped. Code still validates every reply against the full model."""
+
+    def strip(node, names=False):
+        if isinstance(node, list):
+            return [strip(v) for v in node]
+        if not isinstance(node, dict):
+            return node
+        if names:  # keys under "properties" or "$defs" are field names, not keywords
+            return {k: strip(v) for k, v in node.items()}
+        return {
+            k: strip(v, k in {"properties", "$defs"})
+            for k, v in node.items()
+            if k not in {"pattern", "title", "description"}
+        }
+
+    return strip(model.model_json_schema())
+
+
+def system_message(role: Role, schema: dict | None = None, retry: bool = False) -> str:
     rules = [*role.rules, DATA_RULE]
     if role.output == "json":
         rules.append("Return only one JSON object, with no other text.")
     if schema is not None:
         rules.append("The JSON must match this schema exactly: " + json.dumps(schema))
+    if retry:
+        rules.append("Your previous reply was refused because it did not match the schema.")
     return f"Do only this one job: {role.job}.\n" + "\n".join(
         f"{i}. {rule}" for i, rule in enumerate(rules, 1)
     )

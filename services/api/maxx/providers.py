@@ -8,7 +8,7 @@ import httpx2 as httpx
 from maxx import storage
 from maxx.config import settings
 from maxx.costs import calculate_cost, worst_case_usd
-from maxx.guardrails import ROLES, data_message, strip_reasoning, system_message
+from maxx.guardrails import ROLES, data_message, strip_reasoning, system_message, wire_schema
 
 
 class ProviderError(Exception):
@@ -202,10 +202,12 @@ def reasoning_options(model: str) -> dict:
 
 
 async def chat(client, request_id, calls, role, data, schema, image_url=None, label="data"):
-    """One call for one role: the role's rules as the system message, `data` as one labelled JSON
-    object, and a reply that must be exactly one object matching `schema`. One retry on a reply out
-    of contract (it gets the schema); none on a cut-off reply, which would fail the same way."""
+    """One call for one role: the role's rules and schema as the system message, `data` as one
+    labelled JSON object, and a reply that must be exactly one object matching `schema`. The schema
+    also goes in `response_format`, as Nebius advises. One retry on a reply out of contract; none
+    on a cut-off reply, which would fail the same way."""
     spec = ROLES[role]
+    wire = wire_schema(schema)
     model = getattr(settings, spec.setting)
     content = [{"type": "text", "text": data_message(label, data)}]
     if image_url:
@@ -225,7 +227,7 @@ async def chat(client, request_id, calls, role, data, schema, image_url=None, la
             except (ValueError, TypeError):
                 raise Rejected("schema_failed" if attempt else "schema_retry") from None
 
-        system = system_message(spec, schema.model_json_schema() if attempt else None)
+        system = system_message(spec, wire, retry=bool(attempt))
         try:
             return await request(
                 client,
@@ -242,7 +244,10 @@ async def chat(client, request_id, calls, role, data, schema, image_url=None, la
                         {"role": "system", "content": system},
                         {"role": "user", "content": content},
                     ],
-                    "response_format": {"type": "json_object"},
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {"name": schema.__name__, "schema": wire, "strict": True},
+                    },
                     **reasoning_options(model),
                 },
                 parse,

@@ -9,7 +9,8 @@ import pytest
 from pydantic import Field
 
 from maxx.config import settings
-from maxx.guardrails import ROLES, system_message
+from maxx.flow import Rows
+from maxx.guardrails import ROLES, system_message, wire_schema
 from maxx.providers import ModelOutputError, chat
 from maxx.scan import Contract
 
@@ -61,14 +62,31 @@ def test_rules_go_in_the_system_message_and_data_in_labelled_json():
     result, sent, _ = run_chat(['{"brand": "Sony"}'], data={"title": hostile})
     assert result.brand == "Sony"
     messages = sent[0]["messages"]
-    assert messages[0] == {"role": "system", "content": system_message(ROLES["normalise"])}
+    assert messages[0] == {
+        "role": "system",
+        "content": system_message(ROLES["normalise"], wire_schema(Answer)),
+    }
     user = messages[1]["content"]
     assert len(user) == 1
     assert json.loads(user[0]["text"]) == {"item": {"title": hostile}}
     assert "Do only this one job" not in user[0]["text"]
     assert sent[0]["max_tokens"] == ROLES["normalise"].max_tokens
     assert sent[0]["temperature"] == 0
-    assert sent[0]["response_format"] == {"type": "json_object"}
+    assert sent[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "Answer", "schema": wire_schema(Answer), "strict": True},
+    }
+
+
+def test_the_wire_schema_drops_only_what_the_provider_cannot_compile():
+    # Pydantic's Decimal regex uses a lookahead; Nebius answers HTTP 500 for it. Code still
+    # validates the reply against the full model, so dropping it loosens nothing.
+    sent = json.dumps(wire_schema(Rows))
+    assert '"pattern"' not in sent and '"description"' not in sent
+    row = wire_schema(Rows)["$defs"]["PriceRow"]
+    assert {"title", "url", "price"} <= set(row["properties"]) and row["required"]
+    assert row["properties"]["title"] == {"maxLength": 200, "type": "string"}
+    assert row["additionalProperties"] is False
 
 
 def test_nemotron_calls_switch_thinking_off_and_others_do_not(monkeypatch):
@@ -105,12 +123,14 @@ def test_reasoning_fields_are_never_read():
         '```json\n{"brand": "Sony"}\n```',
     ],
 )
-def test_out_of_contract_reply_gets_one_retry_with_the_schema(bad):
+def test_out_of_contract_reply_gets_one_retry_that_says_so(bad):
     result, sent, calls = run_chat([bad, '{"brand": "Sony"}'])
     assert result.brand == "Sony"
     assert len(sent) == 2
-    assert "schema" not in sent[0]["messages"][0]["content"]
-    assert json.dumps(Answer.model_json_schema()) in sent[1]["messages"][0]["content"]
+    for request in sent:
+        assert json.dumps(wire_schema(Answer)) in request["messages"][0]["content"]
+    assert "previous reply" not in sent[0]["messages"][0]["content"]
+    assert "previous reply" in sent[1]["messages"][0]["content"]
     # The retry repeats the same data and never echoes the bad reply back to the model.
     assert sent[1]["messages"][1] == sent[0]["messages"][1]
     assert "schema_retry" in calls[0]["guard"]
