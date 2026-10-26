@@ -1,0 +1,297 @@
+{
+  "started": "2026-10-26T08:47:04Z",
+  "missing_models": [],
+  "probes": [
+    {
+      "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+      "variant": "none",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": true,
+      "completion_tokens": 35,
+      "reasoning_tokens": 28
+    },
+    {
+      "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+      "variant": "chat_template_kwargs",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+      "variant": "reasoning_effort",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3-Ultra-550b-a55b",
+      "variant": "both",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3.5-Super-VL",
+      "variant": "none",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": true,
+      "completion_tokens": 124,
+      "reasoning_tokens": 117
+    },
+    {
+      "model": "nvidia/Nemotron-3.5-Super-VL",
+      "variant": "chat_template_kwargs",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3.5-Super-VL",
+      "variant": "reasoning_effort",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3.5-Super-VL",
+      "variant": "both",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "variant": "none",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": true,
+      "completion_tokens": 176,
+      "reasoning_tokens": 169
+    },
+    {
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "variant": "chat_template_kwargs",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "variant": "reasoning_effort",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/Nemotron-3_5-Lightning",
+      "variant": "both",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "variant": "none",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": true,
+      "completion_tokens": 37,
+      "reasoning_tokens": 30
+    },
+    {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "variant": "chat_template_kwargs",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "variant": "reasoning_effort",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "variant": "both",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": 0
+    },
+    {
+      "model": "google/gemma-3-27b-it",
+      "variant": "none",
+      "finish_reason": "stop",
+      "content_is_bare_json": true,
+      "think_tags_in_content": false,
+      "content_chars": 12,
+      "reasoning_field": false,
+      "completion_tokens": 6,
+      "reasoning_tokens": null
+    }
+  ],
+  "vision": [
+    {
+      "model": "nvidia/Nemotron-3.5-Super-VL",
+      "field_accuracy": "18/20",
+      "cases": [
+        {
+          "file": "screenshots/headphones.png",
+          "fields_matched": "4/4",
+          "error": null,
+          "latency_ms": 1328,
+          "prompt_tokens": 1343
+        },
+        {
+          "file": "screenshots/phone.png",
+          "fields_matched": "4/4",
+          "error": null,
+          "latency_ms": 1007,
+          "prompt_tokens": 1343
+        },
+        {
+          "file": "screenshots/vacuum.png",
+          "fields_matched": "4/4",
+          "error": null,
+          "latency_ms": 846,
+          "prompt_tokens": 1343
+        },
+        {
+          "file": "screenshots/unreadable.png",
+          "fields_matched": "3/4",
+          "error": null,
+          "latency_ms": 867,
+          "prompt_tokens": 1343
+        },
+        {
+          "file": "screenshots/non-usd.png",
+          "fields_matched": "3/4",
+          "error": null,
+          "latency_ms": 1080,
+          "prompt_tokens": 1343
+        }
+      ]
+    },
+    {
+      "model": "google/gemma-3-27b-it",
+      "field_accuracy": "18/20",
+      "cases": [
+        {
+          "file": "screenshots/headphones.png",
+          "fields_matched": "4/4",
+          "error": null,
+          "latency_ms": 1641,
+          "prompt_tokens": 819
+        },
+        {
+          "file": "screenshots/phone.png",
+          "fields_matched": "4/4",
+          "error": null,
+          "latency_ms": 1656,
+          "prompt_tokens": 819
+        },
+        {
+          "file": "screenshots/vacuum.png",
+          "fields_matched": "4/4",
+          "error": null,
+          "latency_ms": 1650,
+          "prompt_tokens": 819
+        },
+        {
+          "file": "screenshots/unreadable.png",
+          "fields_matched": "3/4",
+          "error": null,
+          "latency_ms": 2120,
+          "prompt_tokens": 819
+        },
+        {
+          "file": "screenshots/non-usd.png",
+          "fields_matched": "3/4",
+          "error": null,
+          "latency_ms": 1747,
+          "prompt_tokens": 819
+        }
+      ]
+    }
+  ],
+  "negotiation": {
+    "bid_valid": true,
+    "negotiator_used_tools": true,
+    "round_cost_usd": "0.00284360",
+    "five_round_estimate_usd": "0.01421800"
+  },
+  "embedding": {
+    "mode": "live",
+    "top": "sony-wh1000xm5-black"
+  },
+  "scan": {
+    "file": "screenshots/headphones.png",
+    "warnings": [
+      "Fewer than two independent comparable listings with known shipping and stock. Low confidence."
+    ],
+    "rows": 2,
+    "recommendation": "WAIT",
+    "cost_usd": "0.00054276"
+  },
+  "measured_total_usd": "0.00622649"
+}

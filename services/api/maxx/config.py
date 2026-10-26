@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     nebius_api_key: str = ""
     nebius_base_url: str = "https://api.tokenfactory.nebius.com/v1/"
     tavily_api_key: str = ""
-    model_vision: str = "google/gemma-3-27b-it"
+    model_vision: str = "nvidia/Nemotron-3.5-Super-VL"
     model_fast: str = "nvidia/Nemotron-3_5-Lightning"
     model_reason: str = "nvidia/nemotron-3-super-120b-a12b"
     provider_timeout: float = 20

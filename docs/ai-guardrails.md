@@ -26,12 +26,17 @@ code (not the model) holds every limit.
 4. **Strict schema.** Every answer is validated with Pydantic: `extra="forbid"`, a length limit on
    every string, fixed values where they are known. Fields that are names or sentences refuse
    links, email addresses and instruction-like text ("ignore previous instructions", "system:").
-5. **One retry, at most.** An answer out of contract gets one retry, which adds the schema to the
-   rules. A cut-off answer (`finish_reason: length`) gets none. Thinking is switched off for
+5. **The schema goes with every call.** It is in the rules and in `response_format`
+   (`json_schema`, `strict`), as Token Factory advises. Without it, live models invented field
+   names (`unit_price`, `quantity`) or wrapped the answer in `{"data": …}`. The wire copy drops
+   Pydantic's Decimal `pattern` (its regex lookahead makes Token Factory answer HTTP 500), titles
+   and docstrings; code still validates against the full model.
+6. **One retry, at most.** An answer out of contract gets one retry, which says the previous reply
+   was refused. A cut-off answer (`finish_reason: length`) gets none. Thinking is switched off for
    Nemotron models (`chat_template_kwargs.enable_thinking=false` and `reasoning_effort=none`), so
    reasoning cannot use up `max_tokens` or reach the answer. Only `message.content` is read, never
    `reasoning` or `reasoning_content`.
-6. **Nothing silent.** When a check changes or refuses an answer, the user sees a plain warning or
+7. **Nothing silent.** When a check changes or refuses an answer, the user sees a plain warning or
    a clear error, and the call log records the rule's name (never the content). There is no
    switch to fixture data.
 
@@ -45,7 +50,7 @@ code (not the model) holds every limit.
 | Verdict | `MODEL_REASON` | Write one line explaining the chosen move | Item, score, the move code chose | `Move`: the same move, a headline (120 chars) and an explanation (400 chars) | 300 | 1 + 1 retry per scan |
 | Seller persona | `MODEL_SELLER` | Make one round's offer as a simulated seller | Its own private state, aggregate demand, its own feedback | `Bid`: price, quantity, withdraw | 150 | 1 + 1 retry per seller per round |
 | Seller AI agent | `MODEL_SELLER` | Make one round's offer for one real seller | The same, plus that seller's own note (280 chars) | `Bid` | 150 | 1 + 1 retry per seller per round |
-| Negotiator | `MODEL_NEGOTIATOR` | Run one round with five tools | Round, product title, aggregate demand, the server's reserve ceiling, previous result, seller ids | Tool calls only | 400 | Up to 4 tool turns, 5 actions per turn, 1 retry per round |
+| Negotiator | `MODEL_NEGOTIATOR` | Run one round with five tools | Round, product title, aggregate demand, the server's reserve ceiling, previous result, seller ids | Tool calls only | 400 | Up to 4 tool turns, 5 actions per turn, 1 retry per round; each read tool is offered until it has been answered once |
 | Embed | `MODEL_EMBED` | Turn product titles into vectors | One title and the 50 catalogue titles | Vectors | — | 1 per match |
 
 ## What code checks after each role
@@ -79,7 +84,10 @@ sees another seller's data.
 
 **Negotiator.** Each tool has an argument model with no extra fields. An unknown tool, a missing or
 extra argument, a reserve that is not a plain amount (`^\d{1,9}(\.\d{1,2})?$`), a seller id not in
-the room, more than five actions, or prose instead of tools makes the turn invalid. After one
+the room, more than five actions, a read tool called again after it was answered, or prose
+instead of tools makes the turn invalid. Each read tool (`get_demand_curve`, `get_round_results`)
+leaves the offered tools once answered, so the model must act by its third turn; live Ultra with
+thinking off otherwise spent all four turns re-reading data already in the room. After one
 retry the round uses a fixed rule (the server's ceiling, the same fixed message to every seller,
 close at round 4) and the room shows "Negotiator unavailable; using the fixed rule for this round."
 A reserve above the ceiling is clamped to it. The `text` argument of `send_round_message` is
@@ -149,24 +157,41 @@ which guards fired.
 | `nvidia/Nemotron-3_5-Lightning` | $0.06 | $0.24 | — |
 | `nvidia/nemotron-3-super-120b-a12b` | $0.30 | $0.90 | — |
 | `nvidia/Nemotron-3-Ultra-550b-a55b` | $1.00 | $3.00 | — |
-| `nvidia/Nemotron-3.5-Super-VL` | $0.30 | $0.90 | 1800 (assumed) |
+| `nvidia/Nemotron-3.5-Super-VL` | $0.30 | $0.90 | about 780 measured; 1800 budgeted |
 | `google/gemma-3-27b-it` | $0.10 | $0.30 | 256 |
 | `Qwen/Qwen3-Embedding-8B` | $0.01 | — | — |
 
 Source: Token Factory's own pricing, read from `GET /v1/models?verbose=true` on 24 October 2026.
-All six match the earlier notes. Images are billed as input tokens (the image price is 0); the
-Super VL per-image token count is an assumption until a live call measures it. Rate limits at the
+All six match the earlier notes. Images are billed as input tokens (the image price is 0). Super VL
+used about 780 tokens per fixture screenshot on 26 October 2026 (1,343 prompt tokens against
+Gemma's 819 for the same request); the budget keeps the 1,800 worst case for larger images. Rate limits at the
 time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-north1), 300 and
 200,000 for Super and Ultra (us-central1), 300 and 2,000,000 for Super VL (us-north1).
 
-## Still unverified (needs one live run)
+## Live check results (26 October 2026)
 
-Nebius Token Factory was down on 24 October 2026 (503 on every call, including the model list).
-Until `make verify-guardrails RUN="--run --yes"` has run, these are not confirmed:
+`make verify-guardrails RUN="--run --yes"`; the raw report is `evals/guardrails-live.json`.
 
-- which thinking switch Token Factory honours for each Nemotron model, and whether reasoning still
-  reaches `content`;
-- whether Nemotron 3 Ultra still calls tools with thinking off (its model card suggests thinking
-  may need to be on for tools);
-- the Super VL image token count, and whether it reads the fixture screenshots better than Gemma 3;
-- the measured cost of one scan and one negotiation round.
+- **Thinking switch.** `chat_template_kwargs.enable_thinking=false` and `reasoning_effort=none`
+  each turn thinking off on all four Nemotron models (0 reasoning tokens); the code sends both.
+  With neither, Ultra and Lightning spent all 256 probe tokens reasoning and were cut off, and
+  Ultra wrote its reasoning into `content` with no `<think>` tags.
+- **Ultra tools with thinking off.** It calls tools correctly. Before the read-tool rule it hit the
+  four-turn limit on the first attempt of each run; after it, every round acted within two turns.
+  Ultra's model card only shows tools with thinking on, but thinking on would spend the 400-token
+  turn on reasoning, so thinking stays off.
+- **Vision.** With the schema on every call, both models read 18 of 20 fixture fields with no
+  retries (before: Gemma 10/20 with two failed screenshots, Super VL 17/20 with a retry on every
+  call). The two misses are by design: `VisionItem` allows only `USD` or null. Super VL took about
+  1.0 s and $0.0005 a screenshot; Gemma about 1.8 s and $0.00012. **`MODEL_VISION` is now
+  `nvidia/Nemotron-3.5-Super-VL`**: same accuracy, faster, and Nemotron end to end.
+- **A bug the live run found.** A model writing `"brand": null` raised `TypeError` because the
+  length limit sat on `str | None`; the constraint now sits on the `str` branch only.
+- **Measured cost.** One uncached scan about $0.0013 with Super VL vision (vision $0.0005,
+  extraction $0.0007, normalise $0.00003) plus 2 Tavily credits; a cached one $0.0005. One
+  negotiation round (one negotiator decision and eight seller bids) about $0.003, so five rounds
+  about $0.015.
+
+Still open: spend before the ledger existed is not counted (subtract what the Token Factory
+console shows from `AI_BUDGET_USD`), and the per-address caps rely on the Cloud Run
+client-IP fix.
