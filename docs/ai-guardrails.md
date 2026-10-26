@@ -192,6 +192,7 @@ time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-nor
   negotiation round (one negotiator decision and eight seller bids) about $0.003, so five rounds
   about $0.015.
 
-Still open: spend before the ledger existed is not counted (subtract what the Token Factory
-console shows from `AI_BUDGET_USD`), and the per-address caps rely on the Cloud Run
-client-IP fix.
+Still open: spend before the ledger existed is not counted. Token Factory has no balance API
+(only the console's Usage tab), so subtract what the console shows from `AI_BUDGET_USD`. The
+per-address caps on Cloud Run need `PROXY_CLIENT_IP_SECRET` set on both services (see
+[security](security.md)).

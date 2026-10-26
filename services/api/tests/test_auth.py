@@ -782,3 +782,55 @@ def test_secrets_are_sealed_per_purpose_and_tamper_evident():
         vault.decrypt(sealed, "other-purpose")
     with pytest.raises(InvalidTag):
         vault.decrypt(sealed[:-4] + "AAAA", "totp")
+
+
+PROXY_SECRET = "s" * 40
+
+
+def test_the_web_proxy_names_the_client_only_with_the_shared_secret(monkeypatch):
+    # On Cloud Run the web reaches the API through its public URL, so the last X-Forwarded-For
+    # entry is the web service itself. The web names the browser instead, proven by the secret.
+    from maxx.hardening import client_ip
+
+    monkeypatch.setattr(settings, "proxy_client_ip_secret", PROXY_SECRET)
+    via_web = {b"x-forwarded-for": b"203.0.113.9, 34.1.1.1"}
+    named = {**via_web, b"x-maxx-client-ip": b"198.51.100.4"}
+    assert client_ip({**named, b"x-maxx-proxy-secret": PROXY_SECRET.encode()}, None) == (
+        "198.51.100.4"
+    )
+    # A wrong or missing secret, or a value that is not an address, is ignored.
+    assert client_ip({**named, b"x-maxx-proxy-secret": b"guess" * 8}, None) == "34.1.1.1"
+    assert client_ip(named, None) == "34.1.1.1"
+    bad = {**via_web, b"x-maxx-client-ip": b"evil", b"x-maxx-proxy-secret": PROXY_SECRET.encode()}
+    assert client_ip(bad, None) == "34.1.1.1"
+    # Without a configured secret the header is never trusted.
+    monkeypatch.setattr(settings, "proxy_client_ip_secret", "")
+    assert client_ip({**named, b"x-maxx-proxy-secret": b""}, None) == "34.1.1.1"
+
+
+def test_routes_see_the_client_the_web_proxy_names(monkeypatch):
+    monkeypatch.setattr(settings, "proxy_client_ip_secret", PROXY_SECRET)
+    monkeypatch.setattr(settings, "scan_rate_anonymous_per_hour", 1)
+    with TestClient(app) as client:
+
+        def send(address):
+            return client.post(
+                "/scan",
+                content=b"not-an-image",
+                headers={
+                    "content-type": "image/png",
+                    "x-forwarded-for": "34.1.1.1",
+                    "x-maxx-client-ip": address,
+                    "x-maxx-proxy-secret": PROXY_SECRET,
+                },
+            ).status_code
+
+        # Two visitors behind the same web service keep separate allowances.
+        assert [send("198.51.100.4"), send("198.51.100.5"), send("198.51.100.4")] == [422, 422, 429]
+
+
+def test_a_short_proxy_secret_is_refused_in_any_environment(monkeypatch):
+    from maxx.hardening import configuration_problems
+
+    monkeypatch.setattr(settings, "proxy_client_ip_secret", "short")
+    assert any("PROXY_CLIENT_IP_SECRET" in p for p in configuration_problems())

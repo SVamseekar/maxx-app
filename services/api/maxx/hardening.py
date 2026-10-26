@@ -11,6 +11,8 @@ Layers, outermost first:
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
 import logging
 import re
@@ -48,13 +50,34 @@ NO_STORE_PREFIXES = (
 API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
 
 
+MIN_PROXY_SECRET = 32
+
+
 def forwarded_client(forwarded: str) -> str:
     """The rightmost X-Forwarded-For entry: the one our nearest proxy appended. Clients can write
     any entries to the left of it, so trusting the leftmost lets them pick their own address."""
     return forwarded.split(",")[-1].strip()[:64]
 
 
+def named_client(get) -> str | None:
+    """The browser's address as our own web service names it, or None. Trusted only with the
+    shared secret (compared in constant time) and only when it parses as an IP address: through a
+    public URL the last X-Forwarded-For entry is the web service, not the visitor."""
+    secret = settings.proxy_client_ip_secret
+    if len(secret) < MIN_PROXY_SECRET:
+        return None
+    if not hmac.compare_digest(get("x-maxx-proxy-secret").encode(), secret.encode()):
+        return None
+    try:
+        return str(ipaddress.ip_address(get("x-maxx-client-ip").strip()))
+    except ValueError:
+        return None
+
+
 def client_ip(headers: dict[bytes, bytes], peer: tuple | None) -> str:
+    named = named_client(lambda name: headers.get(name.encode(), b"").decode("latin-1"))
+    if named:
+        return named
     if settings.trust_proxy_headers:
         forwarded = forwarded_client(headers.get(b"x-forwarded-for", b"").decode("latin-1"))
         if forwarded:
@@ -262,6 +285,8 @@ def configuration_problems() -> list[str]:
         problems.append("VERIFY_MODE=stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.")
     if settings.verify_mode == "off" and settings.seller_identity_required:
         problems.append("SELLER_IDENTITY_REQUIRED needs VERIFY_MODE simulator or stripe.")
+    if 0 < len(settings.proxy_client_ip_secret) < MIN_PROXY_SECRET:
+        problems.append(f"PROXY_CLIENT_IP_SECRET must be at least {MIN_PROXY_SECRET} characters.")
     if settings.environment != "production":
         return problems
     if settings.tracking_mode == "easypost" and not settings.easypost_webhook_secret:
@@ -328,6 +353,7 @@ class SecretFilter(logging.Filter):
             settings.easypost_webhook_secret,
             settings.stripe_secret_key,
             settings.stripe_webhook_secret,
+            settings.proxy_client_ip_secret,
         ):
             if secret and len(secret) >= 8 and secret in text:
                 text = text.replace(secret, "[redacted]")

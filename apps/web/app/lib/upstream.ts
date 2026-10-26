@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clientAddress } from "./forwarded";
+import { addressHeaders } from "./forwarded";
 export { safeLocation } from "./safe-url";
 
 /** Server-only helpers for forwarding browser requests to the FastAPI service with the session. */
@@ -13,9 +13,7 @@ export function forwardHeaders(request: Request, extra: Record<string, string> =
     const value = request.headers.get(name);
     if (value) headers[name] = value;
   }
-  const address = clientAddress(request.headers);
-  if (address) headers["x-forwarded-for"] = address;
-  return headers;
+  return { ...headers, ...addressHeaders(request.headers, process.env.PROXY_CLIENT_IP_SECRET) };
 }
 
 /** Copy every Set-Cookie from the API response, so sessions are created and cleared by one owner. */

@@ -48,8 +48,11 @@ async def same_origin(request: Request) -> None:
 
 
 def client_ip(request: Request) -> str:
-    from maxx.hardening import forwarded_client
+    from maxx.hardening import forwarded_client, named_client
 
+    named = named_client(lambda name: request.headers.get(name, ""))
+    if named:
+        return named
     if settings.trust_proxy_headers:
         forwarded = forwarded_client(request.headers.get("x-forwarded-for", ""))
         if forwarded:

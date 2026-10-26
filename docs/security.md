@@ -77,6 +77,11 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
    database password, OAuth client secrets.
 2. Terminate TLS in front of both services and set `X-Forwarded-For` at that proxy. Keep the API
    private (only the web service should reach it) and keep `TRUST_PROXY_HEADERS=true` only then.
+   Where the web must call the API's public URL (Cloud Run), the API's front end appends the web
+   service's own address to `X-Forwarded-For`, so every visitor would share one rate-limit and AI
+   allowance. Set the same `PROXY_CLIENT_IP_SECRET` (32+ random characters) on both services: the
+   web then names the browser in `x-maxx-client-ip`, and the API trusts that header only with the
+   secret (constant-time compare) and only when it parses as an IP address.
 3. Put the web app on its own registrable domain: passkeys bind to the host.
 4. Set the `security.txt` contact and a real `Expires`.
 5. Run `make audit` in CI and on a schedule; rotate secrets if a key is ever exposed.

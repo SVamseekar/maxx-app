@@ -179,6 +179,9 @@ class Settings(BaseSettings):
     webauthn_rp_name: str = "Maxx"
     webauthn_rp_id: str = ""  # defaults to the host of PUBLIC_BASE_URL
     trust_proxy_headers: bool = True
+    # Shared with the web service, which then names the browser's address in x-maxx-client-ip.
+    # Needed wherever the web reaches the API through a public URL (Cloud Run). 32+ characters.
+    proxy_client_ip_secret: str = ""
     admin_emails: str = ""
     email_mode: str = "log"
     email_from: str = "Maxx <no-reply@maxx.local>"
