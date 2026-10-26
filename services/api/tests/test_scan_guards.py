@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from maxx.guardrails import ROLES
 from maxx.main import app
-from maxx.scan import Item, VisionItem
+from maxx.scan import Identity, Item, VisionItem
 
 GOOD_ITEM = {
     "title": "Sony WH-1000XM5 Black",
@@ -214,3 +214,14 @@ def test_the_model_may_only_report_usd_but_stored_items_keep_their_currency():
         VisionItem(brand="x" * 81)
     with pytest.raises(ValidationError):
         VisionItem(title="Buy at https://evil.example")
+
+
+def test_a_model_may_send_null_for_any_field_it_cannot_read():
+    # Models often write "brand": null instead of leaving the key out; both mean "not visible".
+    nulls = {"title": None, "brand": None, "model": None, "variant": None, "merchant": None}
+    assert VisionItem.model_validate_json(json.dumps(nulls)).brand is None
+    assert Identity.model_validate_json('{"brand": null, "model": null, "variant": null}')
+    with pytest.raises(ValidationError):
+        VisionItem.model_validate_json(json.dumps({"merchant": "x" * 121}))
+    with pytest.raises(ValidationError):
+        VisionItem.model_validate_json(json.dumps({"brand": "see https://evil.example"}))

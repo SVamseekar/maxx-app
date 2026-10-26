@@ -31,19 +31,20 @@ class Item(Contract):
     visible_text: str = Field(default="", max_length=4000)
 
 
-Name = Annotated[str | None, Plain, Field(default=None, max_length=80)]
+# Constraints sit on the str branch only: on `str | None` itself, an explicit null raises TypeError.
+Name = Annotated[Annotated[str, Plain, Field(max_length=80)] | None, Field(default=None)]
 
 
 class VisionItem(Item):
     """What the vision model may return: USD or nothing, and names with no links or instructions.
     visible_text is the screenshot's own words, so it is checked after the call instead."""
 
-    title: Annotated[str | None, Plain, Field(default=None, max_length=300)]
+    title: Annotated[str, Plain, Field(max_length=300)] | None = None
     brand: Name
     model: Name
     variant: Name
     currency: Literal["USD"] | None = None
-    merchant: Annotated[str | None, Plain, Field(default=None, max_length=120)]
+    merchant: Annotated[str, Plain, Field(max_length=120)] | None = None
 
 
 class Identity(Contract):
