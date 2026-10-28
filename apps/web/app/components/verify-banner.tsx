@@ -27,7 +27,7 @@ export default function VerifyBanner() {
     setDismissed(found);
   }, []);
   if (!user || HIDDEN_ON.includes(pathname)) return null;
-  const kind: Kind | null = !user.email_verified ? "verify" : user.needs_credential ? "credential" : supported && user.passkeys === 0 ? "passkey" : null;
+  const kind: Kind | null = user.guest ? null : !user.email_verified ? "verify" : user.needs_credential ? "credential" : supported && user.passkeys === 0 ? "passkey" : null;
   if (!kind || dismissed[kind]) return null;
   function dismiss() {
     setDismissed(value => ({ ...value, [kind!]: true }));

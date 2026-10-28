@@ -157,36 +157,41 @@ the authenticated probes pass. Keep keys server-side. PayPal is deferred.
 
 Built from the active `../README.md`, `../_shared/`, and
 `../nebius-nvidia-hackathon/` planning files. `_archive-v1/` was excluded.
-This is a new, local Git repository on branch `main`; no remote or deployment
-is configured. MIT licensed; see `LICENSE`.
+Source: https://github.com/SVamseekar/maxx-app. MIT licensed; see `LICENSE`.
 
 ## Core demo
 
-Start the API with `SCAN_MODE=fixture NEGOTIATION_MODE=fixture make api`.
-Select the sample screenshot, get its verdict, confirm its exact product/variant,
-create a Bloc, join with your maximum and choose **Close Bloc & negotiate**.
-[Blocs](http://localhost:3001/blocs) also provides success, no-deal and withdrawal
-scenarios seeded with 800 buyers total. Reset restores only those three scenarios.
-All commitments, sellers and stock are simulated; fixture offers are explicitly
-labelled. Live Nebius adapters remain available via `NEGOTIATION_MODE=live`.
+Live is the default: with `NEBIUS_API_KEY` and `TAVILY_API_KEY` set, `make api` scans with
+Nemotron 3.5 Super VL and Lightning plus Tavily, and negotiates with Nemotron 3 Ultra (negotiator)
+against seller agents on Nemotron 3 Super, all on Nebius Token Factory. If the day's AI budget
+runs out or Token Factory is unreachable, a negotiation runs the deterministic replay instead and
+the room says so (`NEGOTIATION_REPLAY_FALLBACK`). `SCAN_MODE=fixture NEGOTIATION_MODE=fixture
+MATCH_MODE=fixture make api` runs fully offline on the five synthetic samples (made-up brands).
+
+[Blocs](http://localhost:3001/blocs) lists three shared demo scenarios: successful deal (600
+simulated buyers), no deal and seller withdrawal (100 each), each with eight simulated sellers.
+Simulated buyers and sellers are labelled everywhere, place no PayPal holds and are never
+charged; only real people's holds count as money. Someone else's finished Bloc leaves the list.
 
 Bloc state, jobs, events, demand signals, six-hour Tavily cache and model-call
 metadata persist in Postgres through the single `DATABASE_URL`. Run one API worker;
-process locks do not coordinate multiple workers. Local Postgres restart/replay is
-verified; hosted persistence/SSE remain unverified. Screenshots are processed in RAM
+process locks do not coordinate multiple workers. Screenshots are processed in RAM
 and discarded after synchronous scanning. No paid application disk is needed.
-The demo uses the fixed identity `demo-you`; production authentication is deferred.
 
-See [test audit](docs/test-audit.md), [core verification](docs/nebius-core-verification.md)
-and the [sole operator checklist](docs/operator-actions.md).
+See [test audit](docs/test-audit.md), [core verification](docs/nebius-core-verification.md),
+the [AI guardrails](docs/ai-guardrails.md) and the [sole operator checklist](docs/operator-actions.md).
 
 ## Judge path and evaluation
 
-Open `/judge`, reset the scenarios, enter as `demo-you`, close a ready Bloc, watch
-its stream and inspect `/under-the-hood`. Repeat with failure or withdrawal.
-Alternatively scan the sample, follow its Bloc link, use **Find matching product**
-and confirm an uncertain exact model/variant before joining. Matching uses 50 demo
-identities; the live adapter uses Nebius embeddings with hard variant exclusions.
+Set `JUDGE_ACCESS_CODE` (12+ characters) and share it in the judging notes. Open `/judge`
+(or `/judge?code=...`) and choose **Enter as a judge**: each judge gets a fresh guest account at
+once, with no email or password. Each scenario button opens the judge's own private, unlisted
+copy, so judges never share seats and nothing needs a reset. Join with a PayPal hold (simulated),
+choose **Close Bloc & negotiate**, and follow the rounds; the conversation stays on screen beside
+the outcome. **Start the seller tour** shows the seller side and can be replayed: each start
+refunds leftover tour orders quietly and clears strikes the tour caused. `/under-the-hood` lists
+every model call with its model id, latency and cost. For a judging window raise the daily AI
+budget (see `.env.example`); `AI_BUDGET_USD` still caps the total.
 
 With fixture API/web running (`PAYPAL_MODE=off`, the core demo) and an administrator account from `make dev-account` exported as
 `MAXX_EVAL_EMAIL` and `MAXX_EVAL_PASSWORD`, `make evaluate` writes `evals/core-fixture.json`.

@@ -306,7 +306,7 @@ class NebiusAdapter:
         ]
         # Each read tool is offered until answered once: the data is already in the room, and live
         # Ultra with thinking off otherwise spends every turn re-reading it.
-        answered = set()
+        answered, nudged = set(), False
         for _ in range(4):
             data = await request(
                 client,
@@ -329,9 +329,16 @@ class NebiusAdapter:
                 actions = message.get("tool_calls")
             except (KeyError, IndexError, TypeError, AttributeError):
                 raise InvalidTurn("no_tool_calls") from None
+            if (not isinstance(actions, list) or not actions) and answered and not nudged:
+                # Live Ultra sometimes ends its turn in prose once it has read the room. Its text
+                # never re-enters the conversation; a fixed reminder asks for the decision instead.
+                nudged = True
+                messages.append({"role": "user", "content": DECIDE_NOW})
+                continue
             if not isinstance(actions, list) or not actions:
                 raise InvalidTurn("no_tool_calls")
-            if len(actions) > 5:
+            # A message to every seller plus a reserve and a close, and no more.
+            if len(actions) > len(context["seller_ids"]) + 2:
                 raise InvalidTurn("too_many_actions")
             # Only the tool calls go back into the conversation, never any text beside them.
             messages.append({"role": "assistant", "tool_calls": actions})
@@ -370,6 +377,12 @@ class NebiusAdapter:
             if mutating:
                 return plan
         raise InvalidTurn("turn_limit")
+
+
+DECIDE_NOW = (
+    "You have read the room. Reply only with tool calls now: set_reserve, send_round_message "
+    "or close."
+)
 
 
 class InvalidTurn(Exception):  # noqa: N818 - a signal handled inside the adapter

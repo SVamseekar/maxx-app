@@ -12,18 +12,40 @@ services:
     envVars:
       - key: WEB_CONCURRENCY
         value: "1"
+      # Judges must see Nemotron on Token Factory. The room says so if the replay ever stands in.
       - key: SCAN_MODE
-        value: fixture
+        value: live
       - key: NEGOTIATION_MODE
-        value: fixture
+        value: live
       - key: MATCH_MODE
-        value: fixture
+        value: live
+      - key: NEGOTIATION_REPLAY_FALLBACK
+        value: "true"
+      # Judging window: a larger daily share; AI_BUDGET_USD still caps the total spend.
+      - key: AI_DAILY_BUDGET_USD
+        value: "3"
+      - key: AI_NEGOTIATION_DAILY_BUDGET_USD
+        value: "2"
+      - key: AI_OWNER_NEGOTIATION_DAILY_BUDGET_USD
+        value: "0.30"
+      - key: AI_USER_DAILY_BUDGET_USD
+        value: "0.15"
+      - key: AI_ANONYMOUS_DAILY_BUDGET_USD
+        value: "0.30"
+      # The demo money and seller tour run on the labelled simulators.
+      - key: PAYPAL_MODE
+        value: simulator
+      - key: DEMO_TOOLS
+        value: "true"
+      # One-tap judge entry on /judge; share the code only in the judging notes.
+      - key: JUDGE_ACCESS_CODE
+        sync: false
+      - key: SIMULATOR_WEBHOOK_SECRET
+        generateValue: true
       - key: WORKER_ENABLED
         value: "true"
       - key: BLOC_OPEN_SECONDS
         value: "3600"
-      - key: MODEL_RATES_JSON
-        value: "{}"
       - key: DATABASE_URL
         sync: false
       - key: NEBIUS_API_KEY

@@ -10,6 +10,7 @@ import hmac
 import html
 import json
 import logging
+import uuid
 from typing import Annotated, Literal
 from urllib.parse import parse_qs, quote, urlencode
 
@@ -72,6 +73,7 @@ METHOD_EVENT = {
     "oauth+totp": "login_mfa",
     "oauth+recovery": "login_mfa",
     "signup": "signup",
+    "judge": "signup",
 }
 
 
@@ -89,6 +91,10 @@ class Login(Body):
     email: str = Field(max_length=320)
     password: str = Field(max_length=256)
     captcha: str | None = Field(default=None, max_length=2048)
+
+
+class JudgeEntry(Body):
+    code: str = Field(min_length=1, max_length=200)
 
 
 class LoginMfa(Body):
@@ -127,6 +133,7 @@ class DeleteAccount(Body):
 def user_payload(user: store.User) -> dict:
     providers = store.list_identities(user.id)
     passkeys = len(store.list_passkeys(user.id))
+    guest = user.email.endswith(mail.JUDGE_DOMAIN)
     return {
         "id": user.id,
         "email": user.email,
@@ -138,7 +145,9 @@ def user_payload(user: store.User) -> dict:
         "totp_enabled": user.totp_enabled,
         "passkeys": passkeys,
         # An account nobody can get back into except by emailed link should be told so.
-        "needs_credential": not (user.has_password or passkeys or providers),
+        # Judge guest accounts are disposable: the access code makes a new one at any time.
+        "needs_credential": not (user.has_password or passkeys or providers or guest),
+        "guest": guest,
         "is_admin": is_admin(user),
         "created_at": user.created_at,
     }
@@ -270,6 +279,42 @@ async def signup_verify(body: Token, request: Request, response: Response) -> di
     user = store.get_user(user.id) or user
     await events.record(user, "email_verified", request)
     return await finish_sign_in(user, "signup", request, response)
+
+
+# --- one-tap judge entry ---
+
+
+@router.get("/judge")
+def judge_entry_available() -> dict:
+    return {"available": bool(settings.judge_access_code.strip())}
+
+
+@router.post("/judge")
+async def judge_entry(body: JudgeEntry, request: Request, response: Response) -> dict:
+    """A fresh guest account for a hackathon judge, signed in at once. Off unless
+    JUDGE_ACCESS_CODE is set. Each judge gets their own account, so judges never share
+    Bloc seats, holds or orders. The address is under a reserved domain no mail reaches."""
+    expected = settings.judge_access_code.strip()
+    ip = client_ip(request)
+    ratelimit.hit(f"judge-entry:{ip}", 20, 3600)
+    ratelimit.hit("judge-entry:all", 300, 3600)
+    if not expected:
+        raise HTTPException(404, "Not found.")
+    if not hmac.compare_digest(body.code.strip().encode(), expected.encode()):
+        raise HTTPException(403, "That judge access code is not right. Check the judging notes.")
+    tag = uuid.uuid4().hex[:10]
+    user = await asyncio.to_thread(
+        store.create_user, f"judge-{tag}{mail.JUDGE_DOMAIN}", f"Judge {tag[:4].upper()}", None, True
+    )
+    previous = session_token(request)
+    if previous:
+        store.delete_session(previous)
+    token = store.create_session(
+        user.id, request.headers.get("user-agent", ""), settings.judge_session_days, "judge"
+    )
+    set_session_cookie(response, token)
+    store.add_event(user.id, "signup", events.ip_prefix(ip), request.headers.get("user-agent", ""))
+    return {"user": user_payload(user)}
 
 
 # --- sign-in ---

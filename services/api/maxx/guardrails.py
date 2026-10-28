@@ -183,8 +183,10 @@ ROLES = {
                 "to improve, or close.",
                 "Never invent prices or guess a seller's floor.",
                 "Close when another round cannot improve the result. At most five rounds.",
+                "One turn may message every seller (one call each). Keep each message's text "
+                "under ten words: it is never forwarded.",
             ),
-            400,
+            700,
             "tools",
         ),
     ]

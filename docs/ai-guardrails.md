@@ -50,7 +50,7 @@ code (not the model) holds every limit.
 | Verdict | `MODEL_REASON` | Write one line explaining the chosen move | Item, score, the move code chose | `Move`: the same move, a headline (120 chars) and an explanation (400 chars) | 300 | 1 + 1 retry per scan |
 | Seller persona | `MODEL_SELLER` | Make one round's offer as a simulated seller | Its own private state, aggregate demand, its own feedback | `Bid`: price, quantity, withdraw | 150 | 1 + 1 retry per seller per round |
 | Seller AI agent | `MODEL_SELLER` | Make one round's offer for one real seller | The same, plus that seller's own note (280 chars) | `Bid` | 150 | 1 + 1 retry per seller per round |
-| Negotiator | `MODEL_NEGOTIATOR` | Run one round with five tools | Round, product title, aggregate demand, the server's reserve ceiling, previous result, seller ids | Tool calls only | 400 | Up to 4 tool turns, 5 actions per turn, 1 retry per round; each read tool is offered until it has been answered once |
+| Negotiator | `MODEL_NEGOTIATOR` | Run one round with five tools | Round, product title, aggregate demand, the server's reserve ceiling, previous result, seller ids | Tool calls only | 700 | Up to 4 tool turns, at most (sellers + 2) actions per turn, 1 retry per round; each read tool is offered until it has been answered once; one fixed reminder if a turn after reading has no tool call |
 | Embed | `MODEL_EMBED` | Turn product titles into vectors | One title and the 50 catalogue titles | Vectors | — | 1 per match |
 
 ## What code checks after each role
@@ -180,6 +180,11 @@ time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-nor
   four-turn limit on the first attempt of each run; after it, every round acted within two turns.
   Ultra's model card only shows tools with thinking on, but thinking on would spend the 400-token
   turn on reasoning, so thinking stays off.
+- **Judge-path run (28 Oct 2026), 8 sellers, 600 simulated buyers.** Ultra messaged all eight
+  sellers in one turn: eight actions broke the old five-action limit and the 400-token cap, and
+  some turns ended in prose after reading. The limit is now sellers + 2, the cap 700 tokens, and a
+  prose turn gets one fixed reminder (the model's text is never sent back). One live negotiation
+  cost about $0.026–0.035 (29–39 calls).
 - **Vision.** With the schema on every call, both models read 18 of 20 fixture fields with no
   retries (before: Gemma 10/20 with two failed screenshots, Super VL 17/20 with a retry on every
   call). The two misses are by design: `VisionItem` allows only `USD` or null. Super VL took about

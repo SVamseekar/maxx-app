@@ -59,6 +59,15 @@ def isolate_application_store(tmp_path, monkeypatch):
     monkeypatch.setattr(
         settings, "model_rates_json", type(settings).model_fields["model_rates_json"].default
     )
+    # Whatever .env says (a judging window may run live with larger budgets), tests start from the
+    # replay modes and the built-in AI limits, and opt in to anything else explicitly.
+    for name in ("scan_mode", "match_mode", "negotiation_mode"):
+        monkeypatch.setattr(settings, name, "fixture")
+    monkeypatch.setattr(settings, "negotiation_replay_fallback", False)
+    monkeypatch.setattr(settings, "judge_access_code", "")
+    for name, field in type(settings).model_fields.items():
+        if name.startswith("ai_"):
+            monkeypatch.setattr(settings, name, field.default)
     # Whatever .env says, tests start with the money layer off and opt in explicitly.
     monkeypatch.setattr(settings, "paypal_mode", "off")
     monkeypatch.setattr(settings, "list_cache_seconds", 0)

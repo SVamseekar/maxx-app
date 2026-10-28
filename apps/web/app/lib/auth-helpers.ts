@@ -3,7 +3,7 @@
 export type AccountUser = {
   id: string; email: string; email_verified: boolean; display_name: string; avatar_url: string | null;
   has_password: boolean; providers: string[]; is_admin: boolean; created_at: number;
-  totp_enabled: boolean; passkeys: number; needs_credential: boolean;
+  totp_enabled: boolean; passkeys: number; needs_credential: boolean; guest?: boolean;
 };
 
 /** Only same-site relative paths are followed after sign-in; anything else becomes the fallback. */

@@ -295,6 +295,10 @@ def configuration_problems() -> list[str]:
         problems.append(
             "DEMO_TOOLS creates demo sellers and buyers; it needs PAYPAL_MODE=simulator."
         )
+    if 0 < len(settings.judge_access_code.strip()) < 12:
+        problems.append(
+            "JUDGE_ACCESS_CODE must be at least 12 characters (or empty to turn it off)."
+        )
     if settings.seller_review != "manual":
         problems.append("SELLER_REVIEW must be manual in production; sellers need approval.")
     if settings.paypal_mode == "sandbox" and not settings.paypal_webhook_id:

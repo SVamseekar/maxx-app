@@ -16,11 +16,11 @@ from maxx import budget, hardening, storage
 from maxx.auth import ratelimit
 from maxx.auth.deps import CodedError, CurrentUser, OptionalUser, client_ip, is_admin, same_origin
 from maxx.config import settings
-from maxx.market import refresh_market
+from maxx.market import apply_market, fixture_rows, refresh_market
 from maxx.matching import MatchResult, get_matcher
 from maxx.negotiate.adapters import FixtureAdapter, NebiusAdapter
-from maxx.negotiate.blocs import add_member, leave_member, make_bloc, transition
-from maxx.negotiate.contracts import BlocView, Contract, Money
+from maxx.negotiate.blocs import add_member, emit, leave_member, make_bloc, transition
+from maxx.negotiate.contracts import Bloc, BlocView, Contract, Money
 from maxx.negotiate.runner import negotiation_owner, run_negotiation, terminal_failure
 from maxx.negotiate.store import BlocStore, Conflict
 from maxx.negotiate.stream import event_frames
@@ -42,6 +42,12 @@ class Join(Contract):
     max_price: Money
 
 
+# Simulated buyers seeded into each demo scenario.
+DEMO_CROWD = {"success": 600, "failure": 100, "flaky": 100}
+# The shared demo scenarios, and each judge's private copy of one (see demo.routes.lab).
+SCENARIO_PREFIXES = ("demo-", "lab-")
+
+
 class Runtime:
     def __init__(self, store: BlocStore, mode="fixture", delay=None, adapter_factory=None):
         self.store, self.mode, self.delay = store, mode, delay
@@ -49,9 +55,25 @@ class Runtime:
         self.tasks = {}
         self.lock = asyncio.Lock()
 
+    @staticmethod
+    def scenario_bloc(id: str, scenario: str, mode: str) -> Bloc:
+        """A demo scenario with its simulated crowd. Seeded buyers are not people: they have no
+        account and no PayPal hold, and every view labels them as simulated."""
+        count = DEMO_CROWD[scenario]
+        b = make_bloc(id, "Demo headphones · Black", Decimal("200"), mode=mode, scenario=scenario)
+        for seller in b.sellers:
+            seller.stock = max(2, count // 4)
+        for i in range(count):
+            add_member(b, f"seed-{scenario}-{i}", str(200 - (i % 8) * 10))
+        if mode != "fixture":
+            # A web search for a made-up demo product finds nothing comparable; keep the labelled
+            # fixture reference prices instead.
+            apply_market(b, fixture_rows(b.title, b.typical_price), "fixture", int(time.time()))
+        return b
+
     def seed(self, reset=False):
         seeds = []
-        for scenario, count in [("success", 600), ("failure", 100), ("flaky", 100)]:
+        for scenario in DEMO_CROWD:
             id = "demo-" + scenario
             if not reset:
                 try:
@@ -59,14 +81,7 @@ class Runtime:
                     continue
                 except KeyError:
                     pass
-            b = make_bloc(
-                id, "Demo headphones · Black", Decimal("200"), mode=self.mode, scenario=scenario
-            )
-            for seller in b.sellers:
-                seller.stock = max(2, count // 4)
-            for i in range(count):
-                add_member(b, f"seed-{scenario}-{i}", str(200 - (i % 8) * 10))
-            seeds.append(b)
+            seeds.append(self.scenario_bloc(id, scenario, self.mode))
         if reset:
             self.store.reset_demo(seeds)
         else:
@@ -91,23 +106,33 @@ class Runtime:
                 return b.public()
             if b.status != "OPEN":
                 raise ValueError("Bloc is not open.")
+            mode, replay_reason = self.mode, None
             if self.mode == "fixture":
                 adapter = self.adapter_factory() if self.adapter_factory else FixtureAdapter()
             elif self.mode == "live":
                 if starter and not b.owner_id:
                     b.charged_to = starter
-                budget.negotiation_worst_ok(negotiation_owner(b))
-                adapter = self.adapter_factory() if self.adapter_factory else NebiusAdapter(id)
-                if not self.adapter_factory:
-                    await adapter.verify()
+                try:
+                    budget.negotiation_worst_ok(negotiation_owner(b))
+                    adapter = self.adapter_factory() if self.adapter_factory else NebiusAdapter(id)
+                    if not self.adapter_factory:
+                        await adapter.verify()
+                except (BudgetExceeded, ProviderError) as exc:
+                    if not settings.negotiation_replay_fallback:
+                        raise
+                    # Say so in the room rather than fail: the deterministic replay runs instead.
+                    mode, replay_reason = "fixture", str(exc) or "Live models are unavailable."
+                    adapter = FixtureAdapter()
             else:
                 raise ProviderError("NEGOTIATION_MODE must be fixture or live.")
-            if b.origin == "demand":
+            if replay_reason:
+                emit(b, "live_unavailable", message=replay_reason[:300])
+            if b.origin == "demand" and not b.id.startswith(SCENARIO_PREFIXES):
                 # A seller's listing or the demo tour has no comparable-price research to refresh.
                 payer = budget.Payer("system", "market:" + id, owner=negotiation_owner(b))
                 with budget.payer_scope(payer, settings.ai_max_calls_per_scan):
-                    await refresh_market(b, self.mode, adapter.calls)
-            b.mode = self.mode
+                    await refresh_market(b, mode, adapter.calls)
+            b.mode = mode
             from maxx.sellers import store as seller_store
 
             seller_store.attach(b)  # verified sellers with a standing offer join the table
@@ -303,7 +328,16 @@ def list_blocs(runtime: RuntimeDep, user: OptionalUser):
     cached = list_cache.get(key)
     if cached and time.monotonic() - cached[0] < settings.list_cache_seconds:
         return cached[1]
-    rows = runtime.store.summaries(viewer)
+    rows = [
+        row
+        for row in runtime.store.summaries(viewer)
+        # Someone else's finished Bloc is history, not something to join: only its members and
+        # creator still see it here. The shared demo scenarios always stay.
+        if row["id"].startswith("demo-")
+        or row["status"] in {"OPEN", "NEGOTIATING"}
+        or row["viewer_is_owner"]
+        or row["viewer_joined"]
+    ]
     for row in rows:
         row["committed_total"] = row.pop("committed")
     with list_cache_lock:

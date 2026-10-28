@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     model_negotiator: str = "nvidia/Nemotron-3-Ultra-550b-a55b"
     negotiation_timeout: float = 90
     fixture_round_delay: float = 0.4
+    # With NEGOTIATION_MODE=live: when the AI budget is spent or Token Factory is unreachable, run
+    # the deterministic replay instead (labelled in the room) rather than refusing to start.
+    negotiation_replay_fallback: bool = True
     # Deployment posture. `production` turns on startup checks that refuse insecure settings.
     environment: str = "development"
     # Master key for encrypting secrets stored in the database (TOTP seeds). 32+ random characters.
@@ -183,6 +186,10 @@ class Settings(BaseSettings):
     # Needed wherever the web reaches the API through a public URL (Cloud Run). 32+ characters.
     proxy_client_ip_secret: str = ""
     admin_emails: str = ""
+    # One-tap judge entry (/judge): whoever has this code gets a fresh guest account, signed in,
+    # with no email step. Empty turns it off. Share it only in the hackathon's judging notes.
+    judge_access_code: str = ""
+    judge_session_days: int = Field(default=7, ge=1, le=30)
     email_mode: str = "log"
     email_from: str = "Maxx <no-reply@maxx.local>"
     smtp_host: str = ""

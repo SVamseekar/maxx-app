@@ -97,7 +97,7 @@ def test_every_role_has_one_job_and_the_data_rule():
     assert ROLES["normalise"].max_tokens == 200
     assert ROLES["verdict"].max_tokens == 300
     assert ROLES["seller"].max_tokens == 150
-    assert ROLES["negotiator"].max_tokens == 400
+    assert ROLES["negotiator"].max_tokens == 700
 
 
 def test_schema_is_added_to_the_rules_only_when_asked():

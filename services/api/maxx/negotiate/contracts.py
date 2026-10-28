@@ -23,6 +23,11 @@ class Member(Contract):
     status: Literal["HELD", "LEFT", "WIN", "BELOW_CLEARING", "RELEASED"] = "HELD"
     seller_id: str | None = None
     final_price: Money | None = None
+    # Set in public views: a seeded demo buyer, not a person (no account, no PayPal hold).
+    simulated: bool = False
+
+
+SIMULATED_BUYERS = ("seed-", "demo-buyer-")
 
 
 class Offer(Contract):
@@ -91,6 +96,9 @@ class BlocView(Contract):
     failure_reason: str | None = None
     calls: list[dict] = Field(default_factory=list)
     viewer_is_owner: bool = False
+    # Who sits at the seller table: all of them, and how many are verified sellers' own agents.
+    seller_count: int = 0
+    verified_sellers: int = 0
     # demand: started by buyers. listing: published by a seller. demo_tour: the judge's seller tour.
     origin: Literal["demand", "listing", "demo_tour"] = "demand"
 
@@ -106,8 +114,11 @@ class Bloc(BlocView):
         Seller private fields and account ids never appear: members are opaque ids."""
         value = self.model_dump(mode="json", exclude={"sellers", "owner_id", "charged_to"})
         for member in value["members"]:
+            member["simulated"] = member["user_id"].startswith(SIMULATED_BUYERS)
             member["user_id"] = member["id"]
         value["viewer_is_owner"] = False
+        value["seller_count"] = len(self.sellers)
+        value["verified_sellers"] = sum(s.account_id is not None for s in self.sellers)
         active = [m for m in self.members if m.status == "HELD"]
         value["committed_total"] = str(sum((m.max_price for m in active), Decimal(0)))
         if self.target_price is not None:

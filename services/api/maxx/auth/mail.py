@@ -17,6 +17,9 @@ if not log.handlers:  # visible under uvicorn, whose default config silences app
     log.setLevel(logging.INFO)
     log.propagate = False
 
+# Guest judge accounts (see auth.routes.judge_entry) live under a reserved, undeliverable domain.
+JUDGE_DOMAIN = "@judges.maxx.invalid"
+
 # Tests replace this to capture outgoing mail without a network.
 outbox: list[dict] = []
 
@@ -38,6 +41,8 @@ async def deliver(to: str, subject: str, text: str) -> None:
     outbox uses this so it can retry; sign-in mail uses `send`, which never reveals a failure."""
     outbox.append({"to": to, "subject": subject, "text": text})
     del outbox[:-50]
+    if to.lower().endswith(JUDGE_DOMAIN):
+        return  # judge guest accounts have no mailbox; their inbox is the in-app one
     if settings.email_mode == "smtp" and settings.smtp_host:
         message = EmailMessage()
         message["From"], message["To"], message["Subject"] = settings.email_from, to, subject
