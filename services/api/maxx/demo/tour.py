@@ -16,7 +16,9 @@ import time
 import uuid
 from decimal import Decimal
 
-from maxx import audit
+from sqlalchemy import delete
+
+from maxx import audit, schema, storage
 from maxx.config import settings
 from maxx.fulfilment import service as fulfilment
 from maxx.fulfilment import store as orders
@@ -33,6 +35,9 @@ DEMO_ADDRESSES = [
     ("Ben Demo", "22 Example Avenue", "Portland", "97201", "US"),
     ("Cy Demo", "300 Test Road", "Austin", "73301", "US"),
 ]
+
+
+STRIKE_SUSPENSION = "Suspended after repeated missed commitments."
 
 
 class TourError(ValueError):
@@ -96,10 +101,33 @@ def ensure_demo_seller(user) -> dict:
     return store.by_id(seller["id"])
 
 
+async def fresh_start(seller: dict) -> dict:
+    """Every tour starts from a clean shop: earlier tour orders still waiting are refunded
+    without notices, their alerts are cleared, and any suspension the tour itself caused is
+    lifted. Only demo sellers come here; a real seller account is never touched."""
+    for order in orders.orders_in(["AWAITING_ADDRESS", "AWAITING_SHIPMENT"]):
+        if order["seller_code"] == seller["code"]:
+            await fulfilment.refund_order(order, "seller tour restarted", "system", "CANCELLED")
+    with storage.get_store().engine.begin() as db:
+        db.execute(
+            delete(schema.notifications).where(
+                schema.notifications.c.user_id == seller["user_id"],
+                schema.notifications.c.kind.in_(
+                    ["seller.strike", "seller.order_cancelled", "seller.ship_reminder"]
+                ),
+            )
+        )
+    fields: dict = {"strikes": 0}
+    if seller["status"] == "SUSPENDED" and seller["review_note"] == STRIKE_SUSPENSION:
+        fields.update(status="ACTIVE", review_note="")  # an administrator's decision stays
+    store.update_seller(seller["id"], **fields)
+    return store.by_id(seller["id"])
+
+
 async def start(runtime, user) -> dict:
     if not enabled():
         raise TourError("The seller tour runs only in the demo (PayPal simulator) setup.")
-    seller = ensure_demo_seller(user)
+    seller = await fresh_start(ensure_demo_seller(user))
     bloc_id = str(uuid.uuid4())
     bloc = make_bloc(bloc_id, PRODUCT, TYPICAL, mode=runtime.mode, personas=2, origin="demo_tour")
     bloc.product_key = f"demo-tour:{seller['code']}:{bloc_id[:8]}"

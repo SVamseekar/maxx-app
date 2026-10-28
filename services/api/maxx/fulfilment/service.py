@@ -220,6 +220,9 @@ def check_tracking(order: dict, carrier: str, number: str) -> tuple[str, bool]:
             f"That is not a valid {label} tracking number (its format or check digit is wrong). "
             "Check it against the label."
         )
+    if test_code:
+        # The demo carrier's shared test numbers: every demo seller ships with the same few.
+        return number, True
     with storage.get_store().engine.connect() as db:
         clash = db.execute(
             select(schema.orders.c.buyer_id, schema.orders.c.seller_code).where(
@@ -712,6 +715,11 @@ def retry_failed_payouts(seller_code: str) -> int:
 # ---- refunds -----------------------------------------------------------------------------------
 
 
+def _demo_seller(code: str) -> bool:
+    seller = sellers.by_code(code)
+    return bool(seller and seller["demo"])
+
+
 async def refund_order(order: dict, reason: str, actor: str, final_status: str) -> bool:
     """Return the buyer's money in full, to their PayPal. Idempotent; False if PayPal is down."""
     payment = ledger.get(order["payment_id"])
@@ -758,7 +766,11 @@ async def refund_order(order: dict, reason: str, actor: str, final_status: str) 
         "/orders",
         f"refunded:{order['id']}",
     )
-    if not order["simulated"] and order["status"] in {"AWAITING_ADDRESS", "AWAITING_SHIPMENT"}:
+    if (
+        not order["simulated"]
+        and order["status"] in {"AWAITING_ADDRESS", "AWAITING_SHIPMENT"}
+        and not (actor == "system" and _demo_seller(order["seller_code"]))
+    ):
         notify(
             order["seller_user_id"],
             "seller.order_cancelled",
@@ -963,6 +975,10 @@ async def act_for_simulated_sellers() -> int:
 def _strike(seller_code: str, reason: str) -> None:
     seller = sellers.by_code(seller_code)
     if not seller:
+        return
+    if seller["demo"]:
+        # The judge's demo shop: tour orders left unshipped are refunded, never held against it.
+        audit.record("system", "seller.strike_waived", seller_code, reason)
         return
     strikes = int(seller["strikes"]) + 1
     fields: dict = {"strikes": strikes}
