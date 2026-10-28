@@ -19,6 +19,19 @@ import { AnimatedNumber, useMotionPreferences } from "../../../components/motion
 import { needsRoomSnapshot, statusLabel } from "../../../presentation";
 import { mergeSnapshot } from "../../state";
 
+/** The starting point of the maximum slider. Beside a simulated crowd, many of whom share the
+ * same round limits, 75% of typical would tie with them and lose on joining order. */
+function suggestedShare(bloc: Bloc): number {
+  return bloc.members.some(m => m.simulated) ? .85 : .75;
+}
+
+/** Says plainly who is bidding: replayed or live agents, simulated or verified sellers. */
+function modeLine(bloc: Bloc): string {
+  const verified = bloc.verified_sellers ?? 0, simulated = Math.max(0, (bloc.seller_count ?? 0) - verified);
+  const table = [simulated && `${simulated} simulated ${simulated === 1 ? "seller" : "sellers"}`, verified && `${verified} verified ${verified === 1 ? "seller" : "sellers"} bidding by ${verified === 1 ? "its" : "their"} own rules`].filter(Boolean).join(" and ");
+  return `${bloc.mode === "fixture" ? "Deterministic replay · no model calls" : "Live Nemotron on Nebius Token Factory"}${table ? ` · ${table}` : ""}`;
+}
+
 export default function Room({ id }: { id: string }) {
   const { reduced } = useMotionPreferences();
   const { user, status: authStatus } = useAuth();
@@ -40,7 +53,7 @@ export default function Room({ id }: { id: string }) {
       try {
         const initial = await api<Bloc>(`/api/blocs/${id}`);
         if (!active) return;
-        setBloc(previous => mergeSnapshot(previous, initial)); setMaximum(Number([...initial.members].reverse().find(m => m.user_id === "me" && m.status !== "LEFT")?.max_price ?? (Number(initial.typical_price) * .75).toFixed(2)));
+        setBloc(previous => mergeSnapshot(previous, initial)); setMaximum(Number([...initial.members].reverse().find(m => m.user_id === "me" && m.status !== "LEFT")?.max_price ?? (Number(initial.typical_price) * suggestedShare(initial)).toFixed(2)));
         if (["SETTLED", "FAILED"].includes(initial.status)) { setConnection("Outcome saved"); return; }
         const cursor = initial.events.at(-1)?.id ?? 0;
         const stream = new EventSource(`/api/blocs/${id}/stream?after=${cursor}`);
@@ -79,14 +92,21 @@ export default function Room({ id }: { id: string }) {
   const you = [...bloc.members].reverse().find(m => m.user_id === "me" && m.status !== "LEFT");
   const active = bloc.members.filter(m => m.status !== "LEFT");
   const rounds = bloc.events.filter(e => e.type === "tentative_allocation");
+  // Seeded demo buyers are not people and place no PayPal hold: never count them as money.
+  const crowd = active.filter(m => m.simulated), people = active.filter(m => !m.simulated);
+  const replay = bloc.events.find(e => e.type === "live_unavailable")?.data.message;
+  const done = ["SETTLED", "FAILED"].includes(bloc.status);
+  const money_label = done ? (paying ? "Charged to real buyers" : "Real buyers’ deals") : paying ? "Real PayPal holds" : "Real buyers’ commitments";
+  const money_value = done ? people.filter(m => m.status === "WIN").reduce((sum, m) => sum + Number(m.final_price ?? 0), 0) : people.filter(m => m.status === "HELD").reduce((sum, m) => sum + Number(m.max_price), 0);
   const settled = ["SETTLED", "FAILED"].includes(bloc.status);
   const remaining = Math.max(0, Math.ceil(bloc.closes_at - now / 1000));
   const countdown = now === 0 ? "Loading…" : remaining > 0 ? `${Math.floor(remaining / 60)}m ${String(remaining % 60).padStart(2, "0")}s` : "Awaiting start";
   return <main id="main-content" className="room"><Link className="back-link" href="/blocs"><ArrowLeft size={14} /> All Blocs</Link>
     <div className="room-title"><div><h1>{bloc.title}</h1><p>Your buying group. One shared negotiation. Your own maximum.</p></div><Badge tone={bloc.status === "FAILED" ? "warn" : "good"}>{bloc.status === "NEGOTIATING" && <span className="live-dot" aria-hidden="true" />}{statusLabel(bloc.status)}</Badge></div>
-    <div className={`mode ${bloc.mode}`}>{bloc.mode === "fixture" ? "Fixture agents · all offers are simulated" : "Live Nebius models · sellers and stock are simulated"} · {paying ? moneyLabel(money) : "Demo commitments, no money moves"}</div>
+    <div className={`mode ${bloc.mode}`}>{modeLine(bloc)} · {paying ? moneyLabel(money) : "Demo commitments, no money moves"}</div>
+    {replay && <p className="notice-strip" role="status">Live models were not used for this negotiation: {replay} The deterministic replay ran instead.</p>}
     {error && <ErrorNotice message={error} dismiss={() => setError("")} />}
-    <section className="room-metrics" aria-label="Bloc summary"><div><span><Users size={14} /> Buyers together</span><strong><AnimatedNumber value={active.length} /></strong></div><div><span><Wallet size={14} /> {paying ? "Held by PayPal" : "Demo commitments"}</span><strong><AnimatedNumber value={Number(bloc.committed_total)} currency /></strong></div><div><span><Clock3 size={14} /> {bloc.status === "OPEN" ? "Time to close" : "Negotiation rounds"}</span><strong>{bloc.status === "OPEN" ? countdown : `${bloc.round} / 5`}</strong>{bloc.status !== "OPEN" && <div className="round-track" aria-hidden="true">{[1, 2, 3, 4, 5].map(n => <span key={n} className={n < bloc.round || (settled && n <= bloc.round) ? "done" : n === bloc.round ? "current" : ""}><i /></span>)}</div>}</div></section>
+    <section className="room-metrics" aria-label="Bloc summary"><div><span><Users size={14} /> Buyers together</span><strong><AnimatedNumber value={active.length} /></strong>{crowd.length > 0 && <small className="muted">{people.length} real · {crowd.length} simulated</small>}</div><div><span><Wallet size={14} /> {money_label}</span><strong><AnimatedNumber value={money_value} currency /></strong>{crowd.length > 0 && <small className="muted">{crowd.length} simulated {crowd.length === 1 ? "buyer" : "buyers"} · no money held</small>}</div><div><span><Clock3 size={14} /> {bloc.status === "OPEN" ? "Time to close" : "Negotiation rounds"}</span><strong>{bloc.status === "OPEN" ? countdown : `${bloc.round} / 5`}</strong>{bloc.status !== "OPEN" && <div className="round-track" aria-hidden="true">{[1, 2, 3, 4, 5].map(n => <span key={n} className={n < bloc.round || (settled && n <= bloc.round) ? "done" : n === bloc.round ? "current" : ""}><i /></span>)}</div>}</div></section>
     <div className="room-stack"><GroupDemand bloc={bloc} you={you} order={bloc.status === "OPEN" ? 0 : 2} />
     <motion.div layout="position" style={{ order: 1 }} className="room-grid"><section className="commit-panel">
       <Badge><ShieldCheck size={12} /> Your price is protected</Badge><h2>{settled ? "Your group’s outcome." : "Your maximum. Your limit."}</h2><p>Each winner pays their allocated seller’s price, never above their maximum. {paying ? "PayPal holds your maximum and releases whatever isn’t needed." : "All commitments are simulated."}</p>

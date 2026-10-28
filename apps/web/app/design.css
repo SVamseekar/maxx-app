@@ -744,3 +744,12 @@ html[data-motion=reduced] *, html[data-motion=reduced] *::before, html[data-moti
 }
 :root[data-motion=reduced] .editorial-image img, :root[data-motion=reduced] .editorial-scan-frame i { animation: none !important; transition: none !important; transform: none !important; }
 @media (prefers-reduced-motion: reduce) { .editorial-image img, .editorial-scan-frame i { animation: none !important; transition: none !important; transform: none !important; } }
+
+/* The negotiation stays in view while the outcome and settlement grow below it on the left. */
+@media (min-width: 801px) {
+  .room-grid > .negotiation-chat { position: sticky; top: calc(var(--header-height, 72px) + 16px); }
+}
+.room-metrics small { display: block; margin-top: 6px; font-size: 12px; }
+.judge-entry > div { display: grid; gap: 10px; flex: 1; }
+.judge-entry input { min-width: 0; flex: 1; max-width: 260px; }
+.sample-selector small { flex-basis: 100%; font-size: 12px; line-height: 1.45; }

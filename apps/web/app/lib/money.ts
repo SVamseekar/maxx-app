@@ -17,7 +17,7 @@ export type MoneyConfig = {
 export type Payouts = { seller: string; method: string; units: number; gross: string; fee: string; net: string; status: string; simulated: boolean };
 export type Ledger = {
   currency: string; holds: number; held_total: string; captured_count: number; captured_total: string;
-  voided_count: number; voided_total: string; failed_count: number; platform_fee: string; seller_payouts: string;
+  voided_count: number; voided_total: string; failed_count: number; platform_fee: string; seller_payouts: string; held_for_shipping: string;
   payouts: Payouts[]; reconciled: boolean; settlement: "WAITING" | "NOT_NEEDED" | "RUNNING" | "PARTIAL" | "DONE"; simulated: boolean;
 };
 

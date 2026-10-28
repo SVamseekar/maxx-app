@@ -15,7 +15,8 @@ type EntryProps = { group: ConversationGroup; events: BlocEvent[]; stream: boole
 
 function OfferReplies({ group, events }: Pick<EntryProps, "group" | "events">) {
   const { reduced } = useMotionPreferences();
-  const [open, setOpen] = useState(false);
+  // A few offers show their prices straight away; a full table of sellers starts folded.
+  const [open, setOpen] = useState(group.events.length <= 3);
   const panel = useId();
   const rows = group.events.map(event => ({
     id: event.id,

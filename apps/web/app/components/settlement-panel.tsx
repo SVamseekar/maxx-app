@@ -57,12 +57,13 @@ export default function SettlementPanel({ blocId, config, signedIn }: { blocId: 
       <dl className="books">
         <div><dt>Captured from winners</dt><dd>{usd(ledger.captured_total)} <small>{ledger.captured_count} buyers</small></dd></div>
         <div><dt>Holds released</dt><dd>{usd(ledger.voided_total)} <small>{ledger.voided_count} buyers</small></dd></div>
-        <div><dt>Maxx fee ({config.platform_fee_percent}%, from sellers)</dt><dd>{usd(ledger.platform_fee)}</dd></div>
+        {Number(ledger.held_for_shipping) > 0 && <div><dt>Held until the seller ships</dt><dd>{usd(ledger.held_for_shipping)}</dd></div>}
+        <div><dt>Maxx fee ({config.platform_fee_percent}%, from sellers{Number(ledger.held_for_shipping) > 0 ? ", taken at payout" : ""})</dt><dd>{usd(ledger.platform_fee)}</dd></div>
         <div><dt>Paid to sellers</dt><dd>{usd(ledger.seller_payouts)}</dd></div>
         {ledger.failed_count > 0 && <div className="warn"><dt>Needs attention</dt><dd>{ledger.failed_count} payments failed</dd></div>}
       </dl>
       {ledger.payouts.length > 0 && <table><thead><tr><th>Seller</th><th>Units</th><th>Gross</th><th>Fee</th><th>Net</th><th>Status</th></tr></thead><tbody>{ledger.payouts.map(row => <tr key={row.seller}><td>{row.seller}</td><td>{row.units}</td><td>{usd(row.gross)}</td><td>{usd(row.fee)}</td><td>{usd(row.net)}</td><td>{row.status === "SENT" ? "Sent" : row.status.toLowerCase()}</td></tr>)}</tbody></table>}
-      <p className="small muted">Every dollar captured is either Maxx’s fee or a seller payout. “Reconciled” means the books add up exactly{ledger.simulated ? ", here against the simulator’s ledger" : ", with PayPal ids behind each line"}. Demo participants seeded with the Bloc have no real holds and are not charged.</p>
+      <p className="small muted">Every dollar captured is Maxx’s fee, a seller payout, or held by Maxx until the seller ships. “Reconciled” means those lines add up to the captured total exactly{ledger.simulated ? ", here against the simulator’s ledger" : ", with PayPal ids behind each line"}. The simulated crowd seeded into demo Blocs places no holds: only real people’s PayPal holds appear here.</p>
       {mine && <p className="small muted">Your PayPal ids: order {shortId(mine.paypal.order)} · authorization {shortId(mine.paypal.authorization)} · capture {shortId(mine.paypal.capture)}</p>}
     </Disclosure>
   </motion.section>;
