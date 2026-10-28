@@ -296,12 +296,13 @@ async def judge_entry(body: JudgeEntry, request: Request, response: Response) ->
     Bloc seats, holds or orders. The address is under a reserved domain no mail reaches."""
     expected = settings.judge_access_code.strip()
     ip = client_ip(request)
-    ratelimit.hit(f"judge-entry:{ip}", 20, 3600)
-    ratelimit.hit("judge-entry:all", 300, 3600)
+    ratelimit.hit(f"judge-entry:{ip}", 20, 3600)  # also bounds guessing from one address
     if not expected:
         raise HTTPException(404, "Not found.")
     if not hmac.compare_digest(body.code.strip().encode(), expected.encode()):
         raise HTTPException(403, "That judge access code is not right. Check the judging notes.")
+    # Only real entries count toward the shared cap, so wrong guesses cannot lock judges out.
+    ratelimit.hit("judge-entry:all", 300, 3600)
     tag = uuid.uuid4().hex[:10]
     user = await asyncio.to_thread(
         store.create_user, f"judge-{tag}{mail.JUDGE_DOMAIN}", f"Judge {tag[:4].upper()}", None, True

@@ -154,3 +154,15 @@ def test_finished_blocs_of_other_people_leave_the_public_list(runtime, monkeypat
     with TestClient(app) as visitor:
         listed = {row["id"] for row in visitor.get("/blocs").json()}
     assert "qa-old" not in listed and {"demo-success", "demo-failure", "demo-flaky"} <= listed
+
+
+def test_wrong_codes_never_use_up_the_shared_entry_allowance(runtime, monkeypatch):  # noqa: F811
+    from maxx.auth import ratelimit
+
+    monkeypatch.setattr(settings, "judge_access_code", CODE)
+    before = ratelimit.count("judge-entry:all", 3600)
+    with TestClient(app) as client:
+        assert client.post("/auth/judge", json={"code": "wrong"}).status_code == 403
+        assert ratelimit.count("judge-entry:all", 3600) == before
+        assert client.post("/auth/judge", json={"code": CODE}).status_code == 200
+    assert ratelimit.count("judge-entry:all", 3600) == before + 1
