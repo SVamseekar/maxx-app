@@ -3,7 +3,7 @@ from maxx.scan import Item
 
 
 def test_exact_variant_and_uncertain_confirmation():
-    assert len(CATALOG) == 50
+    assert len(CATALOG) == 52
     exact = match_item(Item(title="Sony WH-1000XM5 Black", model="WH-1000XM5", variant="Black"))
     assert exact.candidates[0].product_key == "sony-wh1000xm5-black"
     assert not exact.requires_confirmation

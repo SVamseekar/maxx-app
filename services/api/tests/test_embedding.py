@@ -16,7 +16,7 @@ def test_injected_embedding_transport_variant_rules_and_bad_dimensions(monkeypat
         import json
 
         body = json.loads(request.content)
-        assert len(body["input"]) == 51
+        assert len(body["input"]) == 53
         return httpx.Response(
             200,
             json={

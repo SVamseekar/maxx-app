@@ -1,4 +1,6 @@
-"""Create synthetic shopping screenshots and explicit replay data; no model accuracy implied."""
+"""Create synthetic shopping screenshots and explicit replay data; no model accuracy implied.
+
+The brands are made up (Aurora, Northwind, Breeze) so no third-party mark appears in the demo."""
 
 import hashlib
 import json
@@ -16,9 +18,9 @@ font = (
 cases = [
     (
         "headphones",
-        "Sony WH-1000XM5 Black",
-        "Sony",
-        "WH-1000XM5",
+        "Aurora Q5 Wireless Headphones Black",
+        "Aurora",
+        "Q5",
         "Black",
         "349.99",
         "Audio store",
@@ -27,9 +29,9 @@ cases = [
     ),
     (
         "phone",
-        "Apple iPhone 16 128GB Black",
-        "Apple",
-        "iPhone 16",
+        "Northwind N16 Phone 128GB Black",
+        "Northwind",
+        "N16",
         "128GB Black",
         "799.00",
         "Phone store",
@@ -38,8 +40,8 @@ cases = [
     ),
     (
         "vacuum",
-        "Dyson V8 Cordless Vacuum",
-        "Dyson",
+        "Breeze V8 Cordless Vacuum",
+        "Breeze",
         "V8",
         "Cordless",
         "399.99",
@@ -49,9 +51,9 @@ cases = [
     ),
     (
         "unreadable",
-        "Sony WH-1000XM5 Black",
-        "Sony",
-        "WH-1000XM5",
+        "Aurora Q5 Wireless Headphones Black",
+        "Aurora",
+        "Q5",
         "Black",
         None,
         "Audio store",
@@ -60,9 +62,9 @@ cases = [
     ),
     (
         "non-usd",
-        "Sony WH-1000XM5 Black",
-        "Sony",
-        "WH-1000XM5",
+        "Aurora Q5 Wireless Headphones Black",
+        "Aurora",
+        "Q5",
         "Black",
         "299.00",
         "Audio store",

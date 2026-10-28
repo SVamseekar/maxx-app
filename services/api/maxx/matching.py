@@ -26,6 +26,7 @@ class Product(Contract):
 
 # Curated identity catalogue, not a price feed; each colour/storage is a separate SKU.
 MODELS = [
+    ("Aurora", "Q5"),  # made-up brand of the demo's sample screenshot (no third-party mark)
     ("Sony", "WH-1000XM5"),
     ("Sony", "WH-1000XM4"),
     ("Sony", "WF-1000XM5"),

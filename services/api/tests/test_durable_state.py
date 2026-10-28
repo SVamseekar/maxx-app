@@ -90,8 +90,8 @@ def test_scan_bonus_only_for_matching_open_unexpired_bloc(monkeypatch):
     import time
 
     monkeypatch.setattr(settings, "scan_mode", "fixture")
-    b = make_bloc("match", "Sony WH-1000XM5 Black", Decimal("200"))
-    b.product_key = "sony-wh1000xm5-black"
+    b = make_bloc("match", "Aurora Q5 Black", Decimal("200"))
+    b.product_key = "aurora-q5-black"  # the sample screenshot's (made-up) product
     storage.get_store().create(b)
     case = json.loads((ROOT / "evals/fixtures.json").read_text())[0]
     data = (ROOT / "evals" / case["file"]).read_bytes()
