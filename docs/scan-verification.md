@@ -72,3 +72,28 @@ This historical scan milestone is superseded by `nebius-core-verification.md`:
 audit, Blocs, demand, cache, jobs and events now use Postgres; the transparency page
 and dated cost calculator exist. Live calls/pricing remain unverified. Fixture
 links are simulated. URL/text input and optional features/payments remain deferred.
+
+## Web search (30 Oct 2026)
+
+`maxx/price_search.py` follows Tavily's search and extract guidance and the usual price-comparison
+matching rules:
+
+- **Query.** Brand, model, variant and title, each word once, plus "price buy new". The search is
+  boosted to the United States and leaves out news, finance, reference, review, video, social and
+  deal sites. Price trackers are left out of offer searches.
+- **Reading pages.** Up to 3 pages are read in full, with an extract query so the chunks sit next to
+  the price. Priced pages that do not yet show both stock and shipping come first. Amazon and
+  Walmart are never read in full: they answer automated readers with bot checks. Bot-check pages
+  are discarded. A slow or failed read falls back to the search snippets.
+- **Matching.** Code vetoes an offer for another brand, model code, model word (Pro, Max, Mini…) or
+  pack size, whatever the model says. Renewed, used and out-of-stock wording counts only around the
+  offer's quoted price. "Add to cart", "Ships within…" and "Pickup today" count as stock wording.
+- **Samples.** The made-up sample screenshots replay their recorded result in live mode, labelled
+  as demo prices, with no live calls.
+
+Checked live on 29–30 Oct:
+- Generic headphones: non-matching products were correctly rejected.
+- Sony WH-1000XM5: sony.com's $228.00 sale price was found. The real page text is now a regression
+  test.
+- listenup.com shows In Stock, Back Order and Out of Stock side by side for different variants, so
+  it is correctly left out.

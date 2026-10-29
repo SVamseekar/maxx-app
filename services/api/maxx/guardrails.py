@@ -126,8 +126,9 @@ ROLES = {
                 "item; an ambiguous variant gets same_item=false.",
                 "USD only. The price must be written in that row's own page. Never use a list "
                 "price, monthly payment or coupon-dependent price.",
-                "Unknown shipping is null. in_stock=true only with explicit stock wording on that "
-                "page.",
+                "Unknown shipping is null. in_stock=true only when that page says the item is in "
+                "stock, offers Add to cart, or promises shipping within a stated time or pickup "
+                "today.",
                 "evidence is an exact quote from that page (at most 300 characters) showing the "
                 "price.",
                 "At most 8 rows and at most one row per site.",

@@ -1,5 +1,7 @@
 """Public metadata only. No prompts, images, credentials or seller state."""
 
+from urllib.parse import urlparse
+
 from fastapi import APIRouter
 
 from maxx import providers, storage
@@ -12,6 +14,8 @@ router = APIRouter()
 class Transparency(Contract):
     modes: dict[str, str]
     configured_models: dict[str, str]
+    # Where every model call goes (host only), e.g. api.tokenfactory.nebius.com.
+    inference_host: str = ""
     calls: list[CallRecord]
     cost_status: str = "unmeasured"
 
@@ -39,6 +43,7 @@ def transparency():
             role: getattr(settings, "model_" + role)
             for role in ("vision", "fast", "reason", "seller", "negotiator", "embed")
         },
+        inference_host=urlparse(settings.nebius_base_url).hostname or "",
         calls=calls,
         cost_status="configured estimates"
         if any(c.cost_status == "estimated" for c in calls)

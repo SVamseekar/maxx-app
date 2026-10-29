@@ -92,8 +92,14 @@ def reserve_for(request_id, provider, purpose, payload, record):
     try:
         if provider == "tavily":
             urls = len(payload.get("urls", [])) if purpose == "extract" else 0
-            # Basic search is 1 credit; basic extract is 1 credit per 5 pages.
-            return budget.reserve_credits(request_id, -(-urls // 5) if urls else 1)
+            # Search: 1 credit (basic) or 2 (advanced). Extract: per 5 pages, 1 credit (basic) or
+            # 2 (advanced); only pages that succeed are billed, so this is the worst case.
+            advanced = (
+                2
+                if "advanced" in (payload.get("search_depth"), payload.get("extract_depth"))
+                else 1
+            )
+            return budget.reserve_credits(request_id, (-(-urls // 5) if urls else 1) * advanced)
         text = json.dumps(payload.get("messages") or payload.get("input") or [])
         tools = json.dumps(payload.get("tools", []))
         images = text.count('"image_url"')

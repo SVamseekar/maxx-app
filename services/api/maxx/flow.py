@@ -13,6 +13,18 @@ from maxx import storage
 from maxx.config import ROOT, settings
 from maxx.guardrails import has_link, looks_like_instruction
 from maxx.matching import CATALOG, match_item
+from maxx.price_search import (
+    FREE_SHIPPING,
+    PAID_SHIPPING,
+    STOCK,
+    blocked_page,
+    extract_payload,
+    extract_targets,
+    offer_window,
+    search_payload,
+    sells_items,
+    variant_conflict,
+)
 from maxx.providers import BudgetExceeded, ProviderError, chat, log_guard, request
 from maxx.scan import (
     Contract,
@@ -103,23 +115,22 @@ def ground_rows(
             # The page talks to the model, so nothing it says about price or stock is trusted.
             fired.append("page_instruction")
             row.same_item = False
-        # Explicitly reject non-retail condition and ungrounded shipping/stock claims.
+        # Reject non-retail condition and other currencies stated for this offer. Only the text
+        # around its quoted price counts: a store page often links renewed or used offers too.
         if re.search(
             r"\b(refurbished|renewed|used|out of stock|sold out|per month|"
             r"CAD|AUD|HKD|SGD|EUR|GBP)\b|[€£₹]",
-            text,
+            offer_window(text, row.evidence),
             re.I,
         ):
             row.same_item = False
-        if row.shipping == 0 and not re.search(r"free shipping|shipping\s*:?\s*\$0", text, re.I):
+        if row.shipping == 0 and not FREE_SHIPPING.search(text):
             row.shipping = None
         elif row.shipping and not re.search(
-            rf"shipping\s*:?\s*\$\s*{re.escape(str(row.shipping))}", text, re.I
+            PAID_SHIPPING.format(amount=re.escape(str(row.shipping))), text, re.I
         ):
             row.shipping = None
-        row.in_stock = row.in_stock and bool(
-            re.search(r"\bin stock\b|available to ship", text, re.I)
-        )
+        row.in_stock = row.in_stock and bool(STOCK.search(text))
         seen_hosts.add(host)
         result.append(row)
     return result
@@ -153,9 +164,11 @@ def flag_outliers(rows: list[PriceRow], price: Decimal | None, warnings: list[st
 
 async def comparable_prices(client, item, request_id, calls, history=False, warnings=None):
     warnings = [] if warnings is None else warnings
-    query = " ".join(filter(None, [item.brand, item.model, item.variant, item.title]))[:400] + (
-        " USD price history deal buy new" if history else " USD price buy new"
-    )
+    if not (item.brand or item.model):
+        warnings.append(
+            "Without a brand and model the web search finds similar products, not this one. "
+            "Add them under Edit extracted details for a real comparison."
+        )
     cache_key = price_cache_key(item, history)
     cached = storage.get_store().cache_get(cache_key)
     if cached is not None:
@@ -176,28 +189,41 @@ async def comparable_prices(client, item, request_id, calls, history=False, warn
         "tavily",
         "search",
         "https://api.tavily.com/search",
-        {"query": query, "search_depth": "basic", "max_results": 8},
+        search_payload(item, history),
     )
     sources = [
         {"url": s["url"], "content": (s.get("title", "") + "\n" + s.get("content", ""))[:10000]}
         for s in data.get("results", [])
-        if s.get("url", "").startswith("https://")
+        if s.get("url", "").startswith("https://") and sells_items(s["url"], history)
     ]
-    missing = [s["url"] for s in sources if not re.search(r"\$\s*\d|USD\s*\d", s["content"])][:3]
-    if missing:
-        extracted = await request(
-            client,
-            request_id,
-            calls,
-            "tavily",
-            "extract",
-            "https://api.tavily.com/extract",
-            {"urls": missing},
-        )
+    fired = []
+    targets = extract_targets(sources)
+    if targets:
+        try:
+            extracted = await request(
+                client,
+                request_id,
+                calls,
+                "tavily",
+                "extract",
+                "https://api.tavily.com/extract",
+                extract_payload(item, targets, history),
+            )
+        except BudgetExceeded:
+            raise
+        except ProviderError:
+            # Reading pages in full only adds evidence; the search snippets still stand.
+            extracted = {}
+            fired.append("extract_failed")
         for source in sources:
             for row in extracted.get("results", []):
-                if row.get("url") == source["url"]:
-                    source["content"] += "\n" + row.get("raw_content", "")[:10000]
+                if row.get("url") != source["url"]:
+                    continue
+                content = row.get("raw_content") or ""
+                if blocked_page(content):
+                    fired.append("blocked_page")
+                else:
+                    source["content"] += "\n" + content[:10000]
     if not sources:
         return []
     parsed = await chat(
@@ -213,8 +239,12 @@ async def comparable_prices(client, item, request_id, calls, history=False, warn
         },
         Rows,
     )
-    fired = []
     rows = ground_rows(parsed.rows, sources, fired)
+    for row in rows:
+        reason = variant_conflict(item, row) if row.same_item else None
+        if reason:
+            row.same_item = False
+            fired.append(reason)
     if "page_instruction" in fired or "row_instruction" in fired:
         warnings.append(INJECTED_PAGE)
     storage.get_store().cache_put(cache_key, [r.model_dump(mode="json") for r in rows])
@@ -228,9 +258,12 @@ async def run_scan(
     started = time.perf_counter()
     calls = []
     warnings = []
-    if settings.scan_mode == "fixture":
-        manifest = json.loads((ROOT / "evals/fixtures.json").read_text())
-        case = next((c for c in manifest if c["sha256"] == hashlib.sha256(data).hexdigest()), None)
+    manifest = json.loads((ROOT / "evals/fixtures.json").read_text())
+    case = next((c for c in manifest if c["sha256"] == hashlib.sha256(data).hexdigest()), None)
+    # The samples show made-up products that no live search can find, so even in live mode they
+    # replay their recorded result, labelled as demo prices.
+    mode = "fixture" if case is not None else settings.scan_mode
+    if mode == "fixture":
         if case is None:
             raise ProviderError(
                 "Fixture mode accepts only the supplied sample screenshots. Configure"
@@ -239,9 +272,13 @@ async def run_scan(
         item = Item.model_validate(case["item"])
         rows = [PriceRow.model_validate(r) for r in case["rows"]]
         warnings.append(
-            "Fixture replay: extraction and prices are canned test data, not live provider results."
+            "Sample replay: this sample's recorded demo prices, with no live calls. Upload a "
+            "screenshot of your own cart for live prices."
+            if settings.scan_mode == "live"
+            else "Fixture replay: extraction and prices are canned test data, not live provider "
+            "results."
         )
-    elif settings.scan_mode == "live":
+    elif mode == "live":
         if not settings.nebius_api_key or not settings.tavily_api_key:
             raise ProviderError(
                 "Live scanning is not configured. Follow docs/operator-actions.md to "
@@ -355,17 +392,17 @@ async def run_scan(
                     warnings.append(str(exc) + " Using the deterministic verdict.")
                 except ProviderError:
                     warnings.append("Verdict model failed; using the deterministic template.")
-            return finish(item, rows, owns, request_id, calls, warnings, started, move)
+            return finish(item, rows, owns, request_id, calls, warnings, started, move, mode)
     else:
         raise ProviderError("SCAN_MODE must be live or fixture.")
     if corrections:
         if corrections.get("title", item.title) != item.title:
             rows = []
         item = item.model_copy(update=corrections)
-    return finish(item, rows, owns, request_id, calls, warnings, started)
+    return finish(item, rows, owns, request_id, calls, warnings, started, mode=mode)
 
 
-def finish(item, rows, owns, request_id, calls, warnings, started, move=None):
+def finish(item, rows, owns, request_id, calls, warnings, started, move=None, mode=None):
     matched = match_item(item)
     open_bloc = None
     if not matched.requires_confirmation and item.currency == "USD":
@@ -402,7 +439,7 @@ def finish(item, rows, owns, request_id, calls, warnings, started, move=None):
         )
     return ScanResult(
         request_id=request_id,
-        mode=settings.scan_mode,
+        mode=mode or settings.scan_mode,
         item=item,
         rows=rows,
         score=score,
