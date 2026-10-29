@@ -788,7 +788,7 @@ PROXY_SECRET = "s" * 40
 
 
 def test_the_web_proxy_names_the_client_only_with_the_shared_secret(monkeypatch):
-    # On Cloud Run the web reaches the API through its public URL, so the last X-Forwarded-For
+    # On Render the web reaches the API through its public URL, so the last X-Forwarded-For
     # entry is the web service itself. The web names the browser instead, proven by the secret.
     from maxx.hardening import client_ip
 

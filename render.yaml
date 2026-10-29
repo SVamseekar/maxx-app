@@ -1,5 +1,6 @@
-# Preparation only. Creating these services requires operator action.
-# Durable state uses external Postgres; no application disk is required.
+# The API on Render's free plan. The web app runs on Vercel and calls it at API_BASE_URL.
+# Durable state uses external Postgres (Neon); no application disk is required.
+# A free instance stops after 15 idle minutes; pages wake it and show a banner while it starts.
 services:
   - type: web
     name: maxx-api
@@ -37,6 +38,9 @@ services:
         value: simulator
       - key: DEMO_TOOLS
         value: "true"
+      # Production refuses to start otherwise; the seller tour marks its demo shop as reviewed.
+      - key: SELLER_REVIEW
+        value: manual
       # One-tap judge entry on /judge; share the code only in the judging notes.
       - key: JUDGE_ACCESS_CODE
         sync: false
@@ -58,9 +62,13 @@ services:
         generateValue: true
       - key: ALLOWED_HOSTS
         sync: false
+      # The web app reaches this API through its public address, so the visitor's address travels in
+      # x-maxx-client-ip; set the same secret on the web app, or every visitor shares one allowance.
+      - key: PROXY_CLIENT_IP_SECRET
+        sync: false
       - key: TURNSTILE_SECRET
         sync: false
-      # Accounts: set PUBLIC_BASE_URL to the maxx-web https address before enabling sign-in.
+      # Accounts: PUBLIC_BASE_URL is the web app's https address (cookies and OAuth need it).
       - key: PUBLIC_BASE_URL
         sync: false
       - key: EMAIL_MODE
@@ -96,22 +104,4 @@ services:
       - key: GITHUB_CLIENT_SECRET
         sync: false
       - key: ADMIN_EMAILS
-        sync: false
-  - type: web
-    name: maxx-web
-    runtime: docker
-    plan: free
-    dockerfilePath: ./deploy/Dockerfile.web
-    dockerContext: .
-    autoDeployTrigger: off
-    envVars:
-      # Use the API's private-network address (http://<api-host>:<port>), not its public URL. The API
-      # takes the last X-Forwarded-For entry as the client; through the public URL that entry would be
-      # this web service's own address, and every visitor would share one rate-limit allowance.
-      - key: API_BASE_URL
-        sync: false
-      # Read by Next.js for the Content-Security-Policy and HSTS.
-      - key: PUBLIC_BASE_URL
-        sync: false
-      - key: TURNSTILE_SITE_KEY
         sync: false

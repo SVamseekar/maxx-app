@@ -9,6 +9,7 @@ import { ConfirmProvider } from "./components/confirm-provider";
 import { AuthProvider } from "./components/auth";
 import { ReauthProvider } from "./components/reauth";
 import VerifyBanner from "./components/verify-banner";
+import { ServerWakeBanner, ServerWakeProvider } from "./components/server-wake";
 import SiteFooter from "./components/site-footer";
 import "./auth.css";
 import "./money.css";
@@ -29,5 +30,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // The Content-Security-Policy carries a per-request nonce (see proxy.ts), so pages render per request.
   await connection();
   const nonce = (await headers()).get("x-nonce") ?? undefined;
-  return <html lang="en" suppressHydrationWarning><head><script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head><body><MotionProvider><AuthProvider><ReauthProvider><ConfirmProvider><a className="skip-link" href="#main-content">Skip to content</a><AppHeader /><VerifyBanner />{children}<SiteFooter /></ConfirmProvider></ReauthProvider></AuthProvider></MotionProvider></body></html>;
+  return <html lang="en" suppressHydrationWarning><head><script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head><body><MotionProvider><AuthProvider><ServerWakeProvider><ReauthProvider><ConfirmProvider><a className="skip-link" href="#main-content">Skip to content</a><AppHeader /><ServerWakeBanner /><VerifyBanner />{children}<SiteFooter /></ConfirmProvider></ReauthProvider></ServerWakeProvider></AuthProvider></MotionProvider></body></html>;
 }

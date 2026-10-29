@@ -1,4 +1,19 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { wakeDue } from "./app/lib/server-wake";
+
+let lastWake = 0;
+
+/**
+ * Starts a sleeping API on the first page request, before the page reaches the browser. The request
+ * only has to arrive for the host to start the instance; the page's banner reports when it is ready.
+ */
+function wakeApi(event: NextFetchEvent) {
+  const now = Date.now();
+  if (!wakeDue(now, lastWake)) return;
+  lastWake = now;
+  const base = (process.env.API_BASE_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+  event.waitUntil(fetch(`${base}/health/ready`, { cache: "no-store", signal: AbortSignal.timeout(5000) }).then(() => undefined, () => undefined));
+}
 
 const PROTECTED = /^\/(account|my-blocs|receipts|sell|orders|admin)(\/|$)/;
 
@@ -35,8 +50,10 @@ function policy(nonce: string): string {
  *    renders. The cookie is validated by the API on every real request, so a stale or forged cookie
  *    reaches the page but never any data.
  * 2. A strict Content-Security-Policy on every page.
+ * 3. A wake request for the API, sent in the background.
  */
-export function proxy(request: NextRequest) {
+export function proxy(request: NextRequest, event: NextFetchEvent) {
+  wakeApi(event);
   const { pathname, search } = request.nextUrl;
   const signedIn = request.cookies.has("maxx_session") || request.cookies.has("__Host-maxx_session");
   if (PROTECTED.test(pathname) && !signedIn) {

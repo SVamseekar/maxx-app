@@ -199,5 +199,5 @@ time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-nor
 
 Still open: spend before the ledger existed is not counted. Token Factory has no balance API
 (only the console's Usage tab), so subtract what the console shows from `AI_BUDGET_USD`. The
-per-address caps on Cloud Run need `PROXY_CLIENT_IP_SECRET` set on both services (see
+per-address caps on Render need `PROXY_CLIENT_IP_SECRET` set on both services (see
 [security](security.md)).

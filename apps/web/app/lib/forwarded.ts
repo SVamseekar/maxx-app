@@ -9,7 +9,7 @@ export function clientAddress(headers: Headers): string | undefined {
 }
 
 /**
- * The headers that tell the API who the browser is. Through a public URL (Cloud Run) the API's own
+ * The headers that tell the API who the browser is. Through a public URL (Render) the API's own
  * front end appends this web service's address to x-forwarded-for, so the address is also named in
  * x-maxx-client-ip, which the API trusts only with the shared secret.
  */

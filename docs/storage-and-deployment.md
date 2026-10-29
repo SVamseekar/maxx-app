@@ -31,12 +31,16 @@ verification separately.
 
 `deploy/compose.yaml` persists only Postgres's Docker volume. API containers run
 Alembic before Uvicorn and fail startup if migration fails. `render.yaml` prepares
-free API/web services and an external Postgres secret; it has no paid disk or
-provisioned database. Nothing was published.
+the free API service and an external Postgres secret; it has no paid disk or
+provisioned database. The web app runs on Vercel.
 
-Render free services sleep after idle traffic and use ephemeral filesystems; free
-Render Postgres expires after 30 days. Use an external durable Postgres account,
-such as Neon, rather than treating an expiring database as durable hosting.
+Render free services stop after 15 minutes without inbound traffic, take about a
+minute to start on the next request, and use ephemeral filesystems; free Render
+Postgres expires after 30 days. Use an external durable Postgres account, such as
+Neon, rather than treating an expiring database as durable hosting. There is no
+keep-alive pinger (Render discourages them): `apps/web/proxy.ts` sends a background
+wake request on page requests, and `ServerWakeBanner` tells the visitor while the API
+starts and holds back actions that need it.
 [Render free-service constraints](https://render.com/docs/free),
 [Render blueprint reference](https://render.com/docs/blueprint-spec).
 

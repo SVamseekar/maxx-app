@@ -7,9 +7,11 @@ receives provider keys. API startup migrates Postgres before accepting traffic.
 Compose persists only Postgres's volume. The single DATABASE_URL stores all
 application state, jobs, normalized events, cache and model-call metadata.
 Screenshots are processed in RAM without retention; no API disk is required.
-Render blueprint prepares two free services, no disk, external Postgres secrets,
-readiness health check and automatic deploys disabled. Free sleep can delay the
-countdown worker until wake. Always-on compute and allowance excess may cost money.
+Hosting: the web app on Vercel, the API on Render's free plan (`render.yaml`: one
+service, no disk, external Postgres such as Neon, readiness health check, automatic
+deploys off). A free instance stops after 15 idle minutes and takes about a minute
+to start; page requests wake it in the background and pages show a banner until it
+answers. Countdown timers pause while it sleeps and resume from Postgres on wake.
 
 Public judge/reset endpoints and fixed demo identity are intentional demo choices.
 One API instance/worker is required. SSE must remain unbuffered. Docker execution

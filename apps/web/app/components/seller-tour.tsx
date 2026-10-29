@@ -8,6 +8,7 @@ import { loginPath } from "../lib/auth-helpers";
 import { useAuth } from "./auth";
 import { FormMessage } from "./auth-ui";
 import { Badge } from "./ui";
+import { useServerReady } from "./server-wake";
 
 const STEPS = [
   { icon: Store, text: "You get a demo seller account with onboarding already passed (identity, sanctions screening and review are shown as done)." },
@@ -23,7 +24,9 @@ export default function SellerTour() {
   const [available, setAvailable] = useState(false);
   const [started, setStarted] = useState<string | null>(null);
   const action = useAction();
-  useEffect(() => { void request<{ available: boolean }>("/api/demo/seller-tour").then(r => setAvailable(r.available)).catch(() => setAvailable(false)); }, []);
+  const ready = useServerReady();
+  // Asked once the API answers, so a sleeping server does not hide the tour.
+  useEffect(() => { if (ready) void request<{ available: boolean }>("/api/demo/seller-tour").then(r => setAvailable(r.available)).catch(() => setAvailable(false)); }, [ready]);
   if (!available) return null;
   return <section className="seller-card seller-tour" aria-labelledby="tour-h">
     <div className="section-heading"><h2 id="tour-h">See the seller side.</h2><Badge>About 4 minutes</Badge></div>
