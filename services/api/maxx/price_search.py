@@ -120,24 +120,27 @@ RETAILERS = (
     "nike.com",
     "ikea.com",
 )
-# Makers' own stores. An offer the maker's store confirms is authoritative for that item, the way
-# comparison sites mark an official store; the fixed list keeps lookalike domains out.
-BRAND_STORES = (
-    "apple.com",
-    "samsung.com",
-    "sony.com",
-    "bose.com",
-    "dell.com",
-    "hp.com",
-    "lenovo.com",
-    "microsoft.com",
-    "ninjakitchen.com",
-    "sharkninja.com",
-    "dyson.com",
-    "kitchenaid.com",
-    "nike.com",
-    "ikea.com",
-)
+# Makers' own stores: brand (letters and digits only) -> the exact store hosts, each with the path
+# its product pages start with. An offer one of these confirms is authoritative for that brand,
+# the way comparison sites mark an official store. Exact hosts only: other subdomains of a maker
+# (community forums such as discussions.apple.com, support sites) carry text anyone can write.
+OFFICIAL_STORES = {
+    "sony": {"electronics.sony.com": "/"},
+    "apple": {"www.apple.com": "/shop/"},
+    "samsung": {"www.samsung.com": "/us/"},
+    "bose": {"www.bose.com": "/"},
+    "dell": {"www.dell.com": "/en-us/shop/"},
+    "hp": {"www.hp.com": "/us-en/shop/"},
+    "lenovo": {"www.lenovo.com": "/us/"},
+    "microsoft": {"www.microsoft.com": "/en-us/store/"},
+    "ninja": {"www.ninjakitchen.com": "/", "www.sharkninja.com": "/"},
+    "shark": {"www.sharkninja.com": "/"},
+    "sharkninja": {"www.sharkninja.com": "/"},
+    "dyson": {"www.dyson.com": "/"},
+    "kitchenaid": {"www.kitchenaid.com": "/"},
+    "nike": {"www.nike.com": "/"},
+    "ikea": {"www.ikea.com": "/us/"},
+}
 # Stores whose product pages answer automated readers with bot checks or script shells: their
 # search snippets are used, but reading the page costs credits and returns no price.
 BOT_WALLED = ("amazon.com", "walmart.com", "target.com", "bestbuy.com", "homedepot.com")
@@ -178,13 +181,13 @@ STOCK = re.compile(
 )
 FREE_SHIPPING = re.compile(
     r"free (?:standard |\d-day |2-day |next-day )?(?:shipping|delivery)|ships free|"
-    r"shipping\s*:?\s*\$0(?:\.00)?(?!\d)",
+    r"shipping(?:\s*:)?\s*\$0(?:\.00)?(?!\d)",
     re.I,
 )
 # What can follow "free shipping" and limit it: an order minimum, or a membership or card.
 FREE_OVER = re.compile(r"(?:orders?|purchases?)\s+(?:over|above|of)\s+\$\s*(\d[\d,]*)", re.I)
 FREE_FOR_MEMBERS = re.compile(r"\bmembers?\b|\bplus\b|\bcircle\b|\bprime\b|with (?:a )?card", re.I)
-PAID_SHIPPING = r"shipping\s*:?\s*\$\s*{amount}"
+PAID_SHIPPING = r"shipping(?:\s*:)?\s*\$\s*{amount}"
 # Labels that make an offer something other than a new, one-off USD purchase: other conditions,
 # auctions and other currencies. They come before the price or in the offer's title.
 NOT_NEW = re.compile(
@@ -208,9 +211,15 @@ NOT_AVAILABLE = re.compile(
     re.I,
 )
 # Besides its prices, a long page keeps one passage for each of these: what the score needs.
-SIGNALS = (STOCK, FREE_SHIPPING, re.compile(r"shipping\s*:?\s*\$\s*\d", re.I))
+SIGNALS = (STOCK, FREE_SHIPPING, re.compile(r"shipping(?:\s*:)?\s*\$\s*\d", re.I))
 # Markdown images and link targets: long URLs that say nothing about the offer.
-MARKUP = (re.compile(r"!\[[^\]]*\]\([^)]*\)"), re.compile(r"\[([^\]]*)\]\([^)]*\)"))
+# Page text is written by whoever runs the site, so every pattern run on it has bounded repeats
+# and the text is capped first: an unbounded "[...](" scan is quadratic on a page of open brackets.
+MARKUP = (
+    re.compile(r"!\[[^\]\n]{0,300}\]\([^)\s]{0,2000}\)"),
+    re.compile(r"\[([^\]\n]{0,300})\]\([^)\s]{0,2000}\)"),
+)
+RAW_LIMIT = 100_000
 # Bot checks and consent walls come back as ordinary pages; their text proves nothing.
 BLOCKED = re.compile(
     r"captcha|robot check|are you a (?:human|robot)|verify you are (?:a )?human|access denied|"
@@ -279,12 +288,11 @@ def sells_items(url: str, history: bool = False) -> bool:
 
 
 def official_store(url: str, brand: str | None) -> bool:
-    """True when the page is on the maker's own store for this brand (sony.com for Sony)."""
-    store = _on(url, BRAND_STORES)
-    if not store or not brand:
-        return False
-    name, label = _compact(brand), store.split(".")[0]
-    return label == name or (len(name) >= 4 and name in label)
+    """True only for an exact store host listed for this brand, under its product path."""
+    stores = OFFICIAL_STORES.get(_compact(brand or ""), {})
+    parts = urlparse(url)
+    prefix = stores.get((parts.hostname or "").lower())
+    return parts.scheme == "https" and prefix is not None and parts.path.startswith(prefix)
 
 
 def product_page(url: str) -> bool:
@@ -388,6 +396,7 @@ def evidence_text(title: str, snippet: str, raw: str, item) -> str:
     and shipping, wherever on the page they are. Every quote the model returns must come from
     this text."""
     parts = [title.strip(), snippet.strip()]
+    raw = raw[:RAW_LIMIT]
     if raw and not blocked_page(raw):
         raw = MARKUP[1].sub(r"\1", MARKUP[0].sub("", raw))
         names = [t for t in (_compact(model_code(item) or ""), _compact(item.brand or "")) if t]

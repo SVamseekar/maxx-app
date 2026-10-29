@@ -506,9 +506,16 @@ def test_the_makers_own_store_can_confirm_an_offer_alone():
 
     assert official_store("https://electronics.sony.com/p/wh1000xm5-b", "Sony")
     assert official_store("https://www.sharkninja.com/ninja-af101/AF101.html", "Ninja")
+    assert official_store("https://www.apple.com/shop/buy-airpods/airpods-pro-2", "Apple")
     assert not official_store("https://www.crutchfield.com/p_158100XM5B/x.html", "Sony")
     assert not official_store("https://sonyheadphonedeals.example/xm5", "Sony")
     assert not official_store("https://www.bose.com/p/qc-ultra", "Sony")
+    # Other subdomains and pages of a maker carry text anyone can write, or no store at all.
+    assert not official_store("https://discussions.apple.com/thread/255", "Apple")
+    assert not official_store("https://www.apple.com/airpods-pro/", "Apple")
+    assert not official_store("https://community.sony.com/s/question/1", "Sony")
+    assert not official_store("http://electronics.sony.com/p/wh1000xm5-b", "Sony")
+    assert not official_store("https://www.sharkninja.com/x", "Sharky")
     store = offer("Sony WH-1000XM5", url="https://electronics.sony.com/p/wh1000xm5-b").model_copy(
         update={"price": Decimal("228")}
     )
@@ -516,3 +523,20 @@ def test_the_makers_own_store_can_confirm_an_offer_alone():
     assert not score.low_confidence and score.best == Decimal("228") and score.value == 30
     other = store.model_copy(update={"url": "https://shop.example/x"})
     assert money_score(Decimal("399.99"), [other], False, brand="Sony").low_confidence
+
+
+def test_hostile_page_text_is_processed_in_bounded_time():
+    import time
+
+    pages = [
+        "![" * 200_000,  # open image markup that never closes
+        "[" + "a" * 300_000,  # an open link label that never closes
+        "[a](" + "b" * 300_000,  # a link target that never closes
+        "shipping" + " " * 200_000 + "x",  # whitespace that never reaches a price
+        ("Free shipping" + " " * 50 + "$") * 20_000,
+    ]
+    for raw in pages:
+        started = time.perf_counter()
+        text = evidence_text("T", "S", raw, SONY)
+        assert time.perf_counter() - started < 2.0, raw[:20]
+        assert len(text) <= 4000
