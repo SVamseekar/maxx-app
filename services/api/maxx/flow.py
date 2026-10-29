@@ -14,19 +14,31 @@ from maxx.config import ROOT, settings
 from maxx.guardrails import has_link, looks_like_instruction
 from maxx.matching import CATALOG, match_item
 from maxx.price_search import (
-    FREE_SHIPPING,
+    CONDITIONAL,
+    ENOUGH_STORES,
+    NOT_AVAILABLE,
+    NOT_NEW,
     PAID_SHIPPING,
     STOCK,
+    after_offer,
+    around_offer,
+    before_offer,
     blocked_page,
+    build_sources,
+    confirmable_stores,
+    evidence_text,
     extract_payload,
     extract_targets,
-    offer_window,
+    free_shipping,
+    merge_sources,
+    rank_sources,
     search_payload,
-    sells_items,
     variant_conflict,
+    verifiable_payload,
 )
 from maxx.providers import BudgetExceeded, ProviderError, chat, log_guard, request
 from maxx.scan import (
+    MEANINGS,
     Contract,
     Identity,
     Item,
@@ -35,6 +47,7 @@ from maxx.scan import (
     ScanResult,
     VisionItem,
     money_score,
+    official_only,
     template_move,
 )
 
@@ -115,22 +128,26 @@ def ground_rows(
             # The page talks to the model, so nothing it says about price or stock is trusted.
             fired.append("page_instruction")
             row.same_item = False
-        # Reject non-retail condition and other currencies stated for this offer. Only the text
-        # around its quoted price counts: a store page often links renewed or used offers too.
-        if re.search(
-            r"\b(refurbished|renewed|used|out of stock|sold out|per month|"
-            r"CAD|AUD|HKD|SGD|EUR|GBP)\b|[€£₹]",
-            offer_window(text, row.evidence),
-            re.I,
+        # Reject non-retail condition, auctions and other currencies (labelled in the title or just
+        # before the quoted price; a store page often lists renewed or open-box offers next to the
+        # new one) and prices that need a card or coupon (written just after the price).
+        if (
+            NOT_NEW.search(row.title)
+            or NOT_NEW.search(before_offer(text, row.evidence))
+            or CONDITIONAL.search(after_offer(text, row.evidence))
         ):
             row.same_item = False
-        if row.shipping == 0 and not FREE_SHIPPING.search(text):
+        # Free shipping is decided by the page's own wording, whatever the model said; a paid
+        # amount must be quoted next to the word shipping.
+        if not row.shipping:
+            row.shipping = Decimal(0) if free_shipping(text, row.price) else None
+        elif not re.search(PAID_SHIPPING.format(amount=re.escape(str(row.shipping))), text, re.I):
             row.shipping = None
-        elif row.shipping and not re.search(
-            PAID_SHIPPING.format(amount=re.escape(str(row.shipping))), text, re.I
-        ):
-            row.shipping = None
-        row.in_stock = row.in_stock and bool(STOCK.search(text))
+        row.in_stock = (
+            row.in_stock
+            and bool(STOCK.search(text))
+            and not NOT_AVAILABLE.search(around_offer(text, row.evidence))
+        )
         seen_hosts.add(host)
         result.append(row)
     return result
@@ -182,21 +199,21 @@ async def comparable_prices(client, item, request_id, calls, history=False, warn
             )
             log_guard(request_id, "extract", flag_outliers(rows, item.price, warnings))
             return rows
+    search = "https://api.tavily.com/search"
     data = await request(
-        client,
-        request_id,
-        calls,
-        "tavily",
-        "search",
-        "https://api.tavily.com/search",
-        search_payload(item, history),
+        client, request_id, calls, "tavily", "search", search, search_payload(item, history)
     )
-    sources = [
-        {"url": s["url"], "content": (s.get("title", "") + "\n" + s.get("content", ""))[:10000]}
-        for s in data.get("results", [])
-        if s.get("url", "").startswith("https://") and sells_items(s["url"], history)
-    ]
+    sources = build_sources(data.get("results", []), item, history)
     fired = []
+    second = None if history else verifiable_payload(item)
+    if second and confirmable_stores(sources, item) < ENOUGH_STORES:
+        # Too few stores could confirm an offer: ask only the stores whose pages can be read.
+        try:
+            more = await request(client, request_id, calls, "tavily", "search", search, second)
+            sources = merge_sources(sources, build_sources(more.get("results", []), item, history))
+        except ProviderError:
+            fired.append("second_search_failed")
+    sources = rank_sources(sources, item)
     targets = extract_targets(sources)
     if targets:
         try:
@@ -209,21 +226,19 @@ async def comparable_prices(client, item, request_id, calls, history=False, warn
                 "https://api.tavily.com/extract",
                 extract_payload(item, targets, history),
             )
-        except BudgetExceeded:
-            raise
         except ProviderError:
-            # Reading pages in full only adds evidence; the search snippets still stand.
+            # Reading pages in full only adds evidence; the search results still stand.
             extracted = {}
             fired.append("extract_failed")
+        pages = {r.get("url"): r.get("raw_content") or "" for r in extracted.get("results", [])}
         for source in sources:
-            for row in extracted.get("results", []):
-                if row.get("url") != source["url"]:
-                    continue
-                content = row.get("raw_content") or ""
-                if blocked_page(content):
-                    fired.append("blocked_page")
-                else:
-                    source["content"] += "\n" + content[:10000]
+            page = pages.get(source["url"])
+            if page is None:
+                continue
+            if blocked_page(page):
+                fired.append("blocked_page")
+            else:
+                source["content"] = evidence_text(source["content"], "", page, item)
     if not sources:
         return []
     parsed = await chat(
@@ -235,7 +250,7 @@ async def comparable_prices(client, item, request_id, calls, history=False, warn
             "item": item.model_dump(
                 mode="json", include={"title", "brand", "model", "variant", "qty", "currency"}
             ),
-            "sources": sources,
+            "sources": [{"url": src["url"], "content": src["content"]} for src in sources],
         },
         Rows,
     )
@@ -363,8 +378,8 @@ async def run_scan(
                     warnings.append(
                         "Price search failed. Try scanning again; no score was inferred."
                     )
-            score = money_score(item.price, rows, owns)
-            move = template_move(item, score)
+            score = money_score(item.price, rows, owns, brand=item.brand)
+            move = template_move(item, score, rows)
             if not score.low_confidence and score.value is not None:
                 try:
                     candidate = await chat(
@@ -376,6 +391,7 @@ async def run_scan(
                             "item": item.model_dump(mode="json"),
                             "score": score.model_dump(mode="json"),
                             "primary": move.primary,
+                            "meaning": MEANINGS[move.primary],
                         },
                         Move,
                     )
@@ -423,15 +439,20 @@ def finish(item, rows, owns, request_id, calls, warnings, started, move=None, mo
         rows,
         owns,
         open_bloc.target_price if open_bloc else None,
+        item.brand,
     )
     if score.bloc_bonus:
-        move = template_move(item, score)
+        move = template_move(item, score, rows)
     if not item.title or not item.price:
         warnings.append(
             "Product or price could not be read. Edit the details or upload a clearer screenshot."
         )
     if item.currency != "USD":
         warnings.append("This milestone supports USD only; no currency conversion is inferred.")
+    if official_only(rows, item.brand):
+        warnings.append(
+            "Scored against the maker's own store: no second store confirmed stock and shipping."
+        )
     if score.low_confidence:
         warnings.append(
             "Fewer than two independent comparable listings with known shipping "
@@ -443,7 +464,7 @@ def finish(item, rows, owns, request_id, calls, warnings, started, move=None, mo
         item=item,
         rows=rows,
         score=score,
-        recommendation=move or template_move(item, score),
+        recommendation=move or template_move(item, score, rows),
         warnings=warnings,
         latency_ms=round((time.perf_counter() - started) * 1000),
         calls=calls,

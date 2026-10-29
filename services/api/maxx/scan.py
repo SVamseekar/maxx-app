@@ -9,6 +9,7 @@ from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from maxx.guardrails import Plain
+from maxx.price_search import official_store
 
 MAX_UPLOAD = 8 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 16_000_000
@@ -136,10 +137,25 @@ def validate_image(data: bytes, mime: str) -> str:
     return mime
 
 
+def trusted_rows(rows: list[PriceRow]) -> list[PriceRow]:
+    """Offers for this item that are in stock with known shipping: the only ones scored."""
+    return [r for r in rows if r.same_item and r.in_stock and r.shipping is not None]
+
+
+def official_only(rows: list[PriceRow], brand: str | None) -> bool:
+    """True when the maker's own store is the single store that confirms an offer."""
+    trusted = trusted_rows(rows)
+    return len(trusted) == 1 and official_store(str(trusted[0].url), brand)
+
+
 def money_score(
-    price: Decimal | None, rows: list[PriceRow], owns: bool, open_bloc_target: Decimal | None = None
+    price: Decimal | None,
+    rows: list[PriceRow],
+    owns: bool,
+    open_bloc_target: Decimal | None = None,
+    brand: str | None = None,
 ) -> Score:
-    trusted = [r for r in rows if r.same_item and r.in_stock and r.shipping is not None]
+    trusted = trusted_rows(rows)
     best = min((r.price + r.shipping for r in trusted), default=None)
     bonus = (
         15 if price is not None and open_bloc_target is not None and open_bloc_target < price else 0
@@ -159,12 +175,55 @@ def money_score(
         price_gap=gap,
         ownership_penalty=15 * owns,
         bloc_bonus=bonus,
-        low_confidence=len(trusted) < 2,
+        # Two stores must agree, or the maker's own store must confirm the offer.
+        low_confidence=len(trusted) < 2 and not official_only(rows, brand),
     )
 
 
-def template_move(item: Item, score: Score) -> Move:
+# What each scored move means for the shopper, in words, for the model that writes the verdict.
+# It is told the direction because it may not see numbers: "CHEAPER" once came back as "This
+# option costs less than others tracked" when the shopper's own price was the higher one.
+MEANINGS = {
+    "CHEAPER": "Another store sells the same item for less than the price in the shopper's "
+    "screenshot, including known shipping. The shopper should check that listing first.",
+    "WAIT": "No cheaper offer for the same item was found. The price in the shopper's screenshot "
+    "is competitive.",
+    "JOIN_BLOC": "An open group deal for this item has a lower target price than the shopper's "
+    "screenshot. Joining is optional and their maximum stays their limit.",
+}
+
+
+def template_move(item: Item, score: Score, rows: list[PriceRow] = ()) -> Move:
     if item.price is None or score.best is None or score.low_confidence:
+        # No score yet, but lower prices for the same item are still worth saying, with what is
+        # unconfirmed. The listings themselves are shown below the verdict.
+        below = sorted(
+            (r for r in rows if r.same_item and item.price is not None and r.price < item.price),
+            key=lambda r: r.price + (r.shipping or 0),
+        )
+        if below:
+            unknown = any(r.shipping is None for r in below)
+            low = below[0].price + (below[0].shipping or 0)
+            if len(below) == 1:
+                basis = "before shipping" if unknown else "delivered"
+                found = (
+                    f"One store lists this item at ${low:.2f} {basis}, "
+                    f"below your ${item.price:.2f}."
+                )
+            else:
+                high = below[-1].price + (below[-1].shipping or 0)
+                found = (
+                    f"{len(below)} stores list this item for less: ${low:.2f} to ${high:.2f}, "
+                    f"against your ${item.price:.2f}."
+                    + (" Shipping is not known for all of them." if unknown else "")
+                )
+            return Move(
+                primary="WAIT",
+                headline="Seen for less elsewhere.",
+                explanation=found
+                + " Fewer than two stores confirm stock and shipping, so there is no score yet. "
+                "Check the listings below before buying.",
+            )
         return Move(
             primary="WAIT",
             headline="Check the details before buying.",

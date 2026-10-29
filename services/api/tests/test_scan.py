@@ -176,7 +176,7 @@ def test_live_transport_schema_retry_and_logging(monkeypatch, tmp_path):
             )
         body = json.loads(req.content)
         if req.url.host == "api.tavily.com":
-            assert body["max_results"] == 8
+            assert body["max_results"] == 10
             return httpx.Response(200, json={"results": sources})
         if body["model"] == settings.model_vision:
             assert body["messages"][1]["content"][1]["image_url"]["url"].startswith(
@@ -229,6 +229,8 @@ def test_live_transport_schema_retry_and_logging(monkeypatch, tmp_path):
     assert result["mode"] == "live"
     assert result["score"]["value"] == 65
     assert "$20.00" in result["recommendation"]["explanation"]
+    # Two stores already confirm price, stock and shipping, so one search is enough.
+    assert [c["purpose"] for c in result["calls"]].count("search") == 1
     assert len(result["calls"]) == 7
     assert attempt == 2
 

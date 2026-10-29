@@ -141,6 +141,8 @@ ROLES = {
             "write a one-line shopping recommendation for the supplied move",
             (
                 "primary must equal the supplied primary exactly.",
+                "Write to the shopper about the price in their screenshot, saying what meaning "
+                "says; never the opposite.",
                 "headline at most 120 characters; explanation at most 400 characters.",
                 "Explain only the supplied price comparison. Write no numbers, prices, "
                 "percentages, links, or shop or product names other than those in item.",

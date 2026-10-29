@@ -75,25 +75,61 @@ links are simulated. URL/text input and optional features/payments remain deferr
 
 ## Web search (30 Oct 2026)
 
-`maxx/price_search.py` follows Tavily's search and extract guidance and the usual price-comparison
-matching rules:
+`maxx/price_search.py` decides how a scan finds comparable offers and which ones it trusts. It
+follows Tavily's search and extract guidance, standard product-matching rules, and live tests on
+real products.
 
-- **Query.** Brand, model, variant and title, each word once, plus "price buy new". The search is
-  boosted to the United States and leaves out news, finance, reference, review, video, social and
-  deal sites. Price trackers are left out of offer searches.
-- **Reading pages.** Up to 3 pages are read in full, with an extract query so the chunks sit next to
-  the price. Priced pages that do not yet show both stock and shipping come first. Amazon and
-  Walmart are never read in full: they answer automated readers with bot checks. Bot-check pages
-  are discarded. A slow or failed read falls back to the search snippets.
-- **Matching.** Code vetoes an offer for another brand, model code, model word (Pro, Max, Mini…) or
-  pack size, whatever the model says. Renewed, used and out-of-stock wording counts only around the
-  offer's quoted price. "Add to cart", "Ships within…" and "Pickup today" count as stock wording.
-- **Samples.** The made-up sample screenshots replay their recorded result in live mode, labelled
-  as demo prices, with no live calls.
+**Retrieval (Tavily).**
 
-Checked live on 29–30 Oct:
-- Generic headphones: non-matching products were correctly rejected.
-- Sony WH-1000XM5: sony.com's $228.00 sale price was found. The real page text is now a regression
-  test.
-- listenup.com shows In Stock, Back Order and Out of Stock side by side for different variants, so
-  it is correctly left out.
+1. **First search, biased toward shops.** One basic search with:
+   - full page text included (`include_raw_content`, still 1 credit by Tavily's usage counter);
+   - US retailers and brand stores preferred (`include_domains_mode: "prefer"`);
+   - news, finance, review, video, social and deal sites excluded.
+
+   For a Ninja AF101 this went from 2 results to 10.
+2. **Second search, when needed.** The score needs two stores that confirm price, stock and
+   shipping, and only stores whose pages can be read can confirm anything. So when fewer than two
+   stores could confirm an offer, a second search asks only readable stores
+   (`include_domains_mode: "restrict"`). For a Sony WH-1000XM5 it added Crutchfield.
+3. **Reading pages in full.** At most 2 pages are read with a focused extract query, and only when
+   the search gave neither their full text nor their stock and shipping. Amazon, Walmart, Target,
+   Best Buy and Home Depot are never read in full: their reads came back empty or blocked.
+
+**What was tried and dropped.**
+- Quoting the model code with `exact_match` returned no results for the Sony.
+- Freshly fetched pages (`max_age_hours`) cut one search to four unpriced results.
+
+**Evidence.** For each page the model sees the title, the snippet, the passages around prices
+(those naming the product first), and one passage each for stock and for shipping. Image and link
+markup is stripped.
+
+**Trust, decided in code.**
+- An offer must come from a product page. Search and category pages are dropped, and so are
+  "Access Denied" pages.
+- Its price must be quoted from the page.
+- These make it a different item: another brand, model code, model word, pack size or colour.
+- These mark it as not new: Renewed, Open Box, Scratch & Dent or bids, written just before its
+  price.
+- These make the price conditional, so it is not a plain retail price: "after $25 off … upon
+  opening a new card", coupons, trade-ins, member prices, monthly prices.
+- "On backorder", "Notify me" or "Pre-order" near the price means not in stock.
+- Free shipping is set from the page's own wording, and only when it covers the price and does
+  not depend on a membership.
+- A score needs two stores that confirm, or the maker's own store from a fixed list. When the
+  maker's store is the only one, a warning says so.
+
+**Verdicts.**
+- With no score, a lower price is still named: "Seen for less elsewhere …".
+- The verdict model is told what its move means for the shopper.
+
+**Samples and live example.**
+- The made-up sample screenshots replay their recorded result, labelled as demo prices.
+- A live example (a Sony WH-1000XM5 cart) runs the full live pipeline.
+
+**Checked live on 29–30 Oct 2026.**
+
+| Product | Result |
+|---|---|
+| Sony WH-1000XM5 | sony.com $228.00 delivered and in stock, so a Money Score of 30 against the $399.99 cart. Crutchfield's $298 was correctly left unscored: on backorder. Abt's offer was the Silver model, so it was rejected. |
+| Ninja AF101 | Home Depot's price needed a new store card, so it was rejected. SharkNinja's own store showed $129.99 with free shipping. |
+| Generic headphones | Non-matching products were rejected. |
