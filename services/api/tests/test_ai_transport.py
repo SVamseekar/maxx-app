@@ -89,6 +89,14 @@ def test_the_wire_schema_drops_only_what_the_provider_cannot_compile():
     assert row["additionalProperties"] is False
 
 
+def test_the_wire_schema_sends_money_as_numbers_only():
+    # Without its pattern, Decimal's string branch let the model answer "$39.95" or "Not listed"
+    # for a price, which the full model then refused and the whole scan failed.
+    row = wire_schema(Rows)["$defs"]["PriceRow"]["properties"]
+    assert row["price"] == {"exclusiveMinimum": 0.0, "type": "number"}
+    assert row["shipping"]["anyOf"] == [{"minimum": 0.0, "type": "number"}, {"type": "null"}]
+
+
 def test_nemotron_calls_switch_thinking_off_and_others_do_not(monkeypatch):
     monkeypatch.setattr(settings, "model_fast", "nvidia/Nemotron-3_5-Lightning")
     _, sent, _ = run_chat(['{"brand": "Sony"}'])

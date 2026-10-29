@@ -196,7 +196,9 @@ ROLES = {
 def wire_schema(model) -> dict:
     """The JSON schema sent to the provider. Pydantic's Decimal `pattern` uses a regex lookahead
     that Nebius's grammar engine cannot compile (HTTP 500), and titles and docstrings are notes
-    for us, so all three are dropped. Code still validates every reply against the full model."""
+    for us, so all three are dropped. Code still validates every reply against the full model.
+    Without its pattern Decimal's string branch would accept any text ("$39.95", "Not listed"),
+    so money goes on the wire as a number only."""
 
     def strip(node, names=False):
         if isinstance(node, list):
@@ -205,6 +207,11 @@ def wire_schema(model) -> dict:
             return node
         if names:  # keys under "properties" or "$defs" are field names, not keywords
             return {k: strip(v) for k, v in node.items()}
+        options = node.get("anyOf")
+        if options and any(o.get("type") == "number" for o in options):
+            kept = [o for o in options if not (o.get("type") == "string" and "pattern" in o)]
+            node = {k: v for k, v in node.items() if k != "anyOf"}
+            node = {**node, **kept[0]} if len(kept) == 1 else {**node, "anyOf": kept}
         return {
             k: strip(v, k in {"properties", "$defs"})
             for k, v in node.items()
