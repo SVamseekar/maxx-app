@@ -18,6 +18,7 @@ import GroupDemand from "../../../components/group-demand";
 import { AnimatedNumber, useMotionPreferences } from "../../../components/motion-system";
 import { needsRoomSnapshot, statusLabel } from "../../../presentation";
 import { mergeSnapshot } from "../../state";
+import { callSummary } from "../../../lib/call-summary";
 
 /** The starting point of the maximum slider. Beside a simulated crowd, many of whom share the
  * same round limits, 75% of typical would tie with them and lose on joining order. */
@@ -117,7 +118,7 @@ export default function Room({ id }: { id: string }) {
       <h3>Round history</h3>{rounds.length ? <table><thead><tr><th>Round</th><th>Avg price</th><th>Served</th></tr></thead><tbody>{rounds.map(e => <tr key={e.id}><td>{e.data.round}</td><td>{usd(e.data.avg_price ?? null)}</td><td>{e.data.served}</td></tr>)}</tbody></table> : <p className="muted">Round results will appear as offers arrive.</p>}
     </section><NegotiationChat bloc={bloc} you={you} connection={connection} reconnect={() => { source.current?.close(); setReconnect(r => r + 1); }} /></motion.div></div>
     <Disclosure title="Market evidence & reference target"><p>Typical {usd(bloc.typical_price)} · Reference target {usd(bloc.target_price)}</p><p>{bloc.target_reason}</p><p>{bloc.market_mode === "fixture" ? "Fixture price history · simulated reference prices" : bloc.market_mode === "live" ? "Tavily-sourced price history" : "Price history unavailable; no target inferred"}</p>{bloc.market_rows.map((row, i) => <p key={i}>{safeHref(row.url) ? <a href={safeHref(row.url)!} target="_blank" rel="noopener noreferrer nofollow">{row.title}</a> : row.title} · {usd(row.price)} + shipping {usd(row.shipping)}</p>)}</Disclosure>
-    <details><summary>Under the hood · {bloc.calls.length} provider calls</summary>{bloc.mode === "fixture" && <p>Deterministic fixture policy, no model calls. This does not measure AI negotiation quality.</p>}{bloc.calls.map((c,i) => <p key={i}>{c.purpose} · {c.model ?? "model listing"} · {c.status} · {c.latency_ms} ms · tokens {c.tokens ? JSON.stringify(c.tokens) : "unavailable"} · cost {c.cost_usd === null ? "unmeasured" : `$${c.cost_usd} (${c.cost_status})`}</p>)}</details>
+    <details><summary>Under the hood · {callSummary(bloc.calls)}</summary>{bloc.mode === "fixture" && <p>Deterministic fixture policy, no model calls. This does not measure AI negotiation quality.</p>}{bloc.calls.map((c,i) => <p key={i}>{c.purpose} · {c.model ?? "model listing"} · {c.status} · {c.latency_ms} ms · tokens {c.tokens ? JSON.stringify(c.tokens) : "unavailable"} · cost {c.cost_usd === null ? "unmeasured" : `$${c.cost_usd} (${c.cost_status})`}</p>)}</details>
     <AnimatePresence>{holding && money && <HoldDialog key="hold" bloc={bloc} maximum={maximum} config={money} onJoined={fresh => { setBloc(previous => mergeSnapshot(previous, fresh)); setHolding(false); }} onClose={() => setHolding(false)} />}</AnimatePresence>
     <AppFooter />
   </main>;
