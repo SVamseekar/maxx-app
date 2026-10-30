@@ -1,4 +1,4 @@
-"""In-process sliding-window limiter. The API runs as one worker (see storage-and-deployment.md)."""
+"""In-process sliding-window limiter. The API runs as one worker (see docs/deployment.md)."""
 
 from __future__ import annotations
 

@@ -135,7 +135,10 @@ a verified account directly: `make dev-account EMAIL=you@example.com PASSWORD='a
   this locally: find the line `EMAIL (log mode) to=… subject=…`.
 - `EMAIL_MODE=smtp`: set `SMTP_HOST`, `SMTP_PORT` (STARTTLS, default 587), `SMTP_USER`,
   `SMTP_PASSWORD`, `EMAIL_FROM`. Delivery failures are logged without revealing whether an
-  account exists.
+  account exists. Hosts that block outbound mail ports (Render's free plan blocks 25, 465 and
+  587) can use a relay that listens on 2525; the hosted demo sends through Brevo on 2525.
+- Every message goes out as plain text with a matching HTML part rendered from one layout
+  (`services/api/maxx/auth/mail_layout.py`); anything a person typed is escaped.
 
 ### Administrators
 
@@ -155,9 +158,9 @@ serves a JWKS (forged, expired, wrong-audience, wrong-nonce and wrong-issuer tok
 removing the signature or nonce check makes tests fail). The browser journeys (sign up, verify by
 emailed link, join, negotiate, My Blocs, reset, change password, delete, and Google, Apple
 (form-post relay) and Microsoft sign-in with linking) were run against the real Next.js → FastAPI →
-Postgres stack using a local signing provider. **Not verified:** the real Google, Apple, Microsoft
-and GitHub consoles, real SMTP delivery and hosted HTTPS cookies; each needs your credentials or
-deployment.
+Postgres stack using a local signing provider. On the hosted demo (30 October 2026), sign-up emails
+were accepted by a real SMTP relay and session cookies work over HTTPS. **Not verified:** the
+real Google, Apple, Microsoft and GitHub consoles; each needs your own credentials.
 
 ## Limits to know
 

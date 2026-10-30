@@ -1,6 +1,7 @@
 # Security
 
-Reviewed 13 October 2026. This is what the app does to protect people and their accounts, what was
+Reviewed 13 October 2026; the test counts below are from that review (current totals are in
+[verification](verification.md)). This is what the app does to protect people and their accounts, what was
 checked, and what remains the operator's job. Nothing here is a claim of a third-party audit.
 
 ## Threats this design answers
@@ -69,7 +70,7 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
   enrolment with recovery codes, second-step sign-in, wrong code refused, trusted browser, stale-
   session re-authentication, account deletion.
 
-## What is still yours to do
+## What a deployer must do
 
 1. Set the production environment (see `.env.example`): `ENVIRONMENT=production`, an https
    `PUBLIC_BASE_URL`, `SECRET_KEY` (32+ random characters, kept secret and backed up: losing it
@@ -85,7 +86,7 @@ checked, and what remains the operator's job. Nothing here is a claim of a third
 3. Put the web app on its own registrable domain: passkeys bind to the host.
 4. Set the `security.txt` contact and a real `Expires`.
 5. Run `make audit` in CI and on a schedule; rotate secrets if a key is ever exposed.
-6. Back up the database and test restores (`docs/storage-and-deployment.md`).
+6. Back up the database and test restores ([deployment](deployment.md)).
 7. Consider Turnstile (`TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET`) before public launch.
 
 ## Payments (see [payments](payments.md))

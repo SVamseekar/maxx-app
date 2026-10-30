@@ -1,6 +1,6 @@
 # AI guardrails
 
-Written 24 October 2026. This page lists every place Maxx uses a language model, what each one is
+Written 24 October 2026 and updated with live measurements through 30 October. This page lists every place Maxx uses a language model, what each one is
 allowed to do, and how spending is capped. Code: `services/api/maxx/guardrails.py` (the roles),
 `providers.py` (the transport), `budget.py` (the spending cap).
 
@@ -194,7 +194,7 @@ time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-nor
   length limit sat on `str | None`; the constraint now sits on the `str` branch only.
 - **Measured cost.** One uncached scan about $0.0013 with Super VL vision (vision $0.0005,
   extraction $0.0007, normalise $0.00003) plus 2 Tavily credits (before the 30 Oct search
-  redesign, which uses 1 to 4: see `scan-verification.md`); a cached one $0.0005. One
+  redesign, which uses 1 to 4: see [verification](verification.md)); a cached one $0.0005. One
   negotiation round (one negotiator decision and eight seller bids) about $0.003, so five rounds
   about $0.015.
 

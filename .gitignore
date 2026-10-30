@@ -19,3 +19,10 @@ __pycache__/
 *.db-*
 .DS_Store
 *.tsbuildinfo
+
+# Internal working notes: kept locally, never published.
+/docs/internal/
+/docs/superpowers/
+/docs/design/
+apps/web/AGENTS.md
+apps/web/CLAUDE.md

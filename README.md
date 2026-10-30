@@ -1,228 +1,156 @@
 # Maxx
 
-Maxx will turn shopping screenshots into advice and collective buying power.
-The core demo implements screenshot → comparable prices → deterministic Money Score →
-confirmed product Bloc → maximum-price commitment → streamed negotiation → allocation
-or failed outcome. With `PAYPAL_MODE=simulator` or `sandbox`, joining places a PayPal hold,
-winners are charged only their winning price, everyone else is released, and sellers are paid
-out; an agent can also check out a cheaper offer, and PYUSD can pay for it. See
-[payments](docs/payments.md) for what is real, what is simulated and how to run it.
+**Buy together. Pay less.** Screenshot what you're about to buy and Maxx tells you the smartest
+move. When many people want the same product, they join a **Bloc**: each sets a private maximum,
+and AI agents bargain with sellers for all of them at once. Everyone pays the price they were
+allocated, never more than their maximum, and nothing if no deal closes.
 
-Live mode calls Nebius and Tavily from FastAPI; missing keys produce an explicit
-error. Use `SCAN_MODE=fixture make api` to try the supplied synthetic samples with
-clearly labelled replay results. The default is `SCAN_MODE=live`.
+**Live demo:** https://maxx.souravamseekar.com · **Judges:** start at
+[`/judge`](https://maxx.souravamseekar.com/judge) · MIT licensed
 
-People sign up by emailed link or with Google, Apple, Microsoft or GitHub, secure the account with
-a passkey or authenticator app, and join Blocs as themselves; see
-[accounts and sign-in](docs/accounts.md) and [security](docs/security.md).
+Built for the Nebius × NVIDIA Global AI Hackathon (Best Apps & Agents, Best Use of Tavily). Every
+model runs on **Nebius Token Factory**, and every reasoning step uses an **NVIDIA Nemotron** model.
 
-Sellers apply, confirm their payout email, pass an identity check and OFAC sanctions screening,
-then publish standing offers or list products nobody has asked for yet, negotiated by fixed rules
-or a bounded AI agent. Winning buyers give a delivery address; sellers ship with a tracking number
-that is checked against the carrier's format and followed with the carrier, and are paid when the
-parcel is delivered (at the first scan once trusted). Unshipped orders are refunded, and buyers and
-sellers get in-app and email notifications. Tracking and identity run in labelled simulators until
-EasyPost and Stripe keys are set. Maxx is the marketplace platform, not the seller: it does not
-ship or handle goods. Every feature is listed at `/features`, and `/judge` has a four-minute seller
-tour. See [marketplace](docs/marketplace.md),
-[market and compliance research](docs/market-research.md), [performance](docs/performance.md), and
-the 15 policy pages under `/legal`.
+## Try it (judges)
 
-See [your configuration checklist](docs/operator-actions.md),
-[provider verification evidence](docs/provider-verification.md), and
-[scan verification measurements](docs/scan-verification.md).
+1. Open [`/judge`](https://maxx.souravamseekar.com/judge) first. The free API sleeps when idle;
+   the first visit takes about a minute while a banner shows it waking.
+2. Enter the judge access code from the submission notes. You get your own guest account at once:
+   no email, no password.
+3. **Try successful deal** opens your private copy of a Bloc with 600 simulated buyers and eight
+   seller agents. Set your maximum and **Join with a PayPal hold** (simulated).
+4. **Close Bloc & negotiate** and watch the rounds stream in: Nemotron 3 Ultra negotiates for the
+   group, Nemotron 3 Super runs each seller agent, and a deterministic engine sets every price.
+5. **Start the seller tour** for the seller side: your own seller agent, orders, shipping with a
+   test tracking number, payout on delivery.
+6. **Scan**: the **Live example** runs the full live pipeline (vision, Tavily, verdict); you can
+   also upload a screenshot of your own cart or product page.
+7. **Under the hood** lists every model call with its model id, latency and cost.
 
-## Stack
+Simulated buyers, sellers and PayPal are labelled everywhere. They place no real holds and nobody
+is charged for them.
 
-- Node.js 22.13+ LTS recommended (`.nvmrc`); Python 3.12; npm and uv.
-- Next.js **16.3.8**, React **19.3.0**, TypeScript **5.9.3**, Tailwind **4.3.3**.
-- FastAPI **0.142.2**, Pydantic **2.13.5**, SQLAlchemy **2.0.54**,
-  Psycopg **3.3.6**, Alembic **1.20.0** (Python packages resolved in `uv.lock`).
-- Docker Compose uses Postgres 17; an isolated native Postgres 15+ is also supported.
-- npm dependencies are pinned with `package-lock.json`; Python is locked with
-  `services/api/uv.lock`. Install with `npm ci` and `uv sync --locked`.
+## How Maxx uses Nebius and Nemotron
 
-The planning docs proposed Next.js 15. The foundation uses a patched Next.js 16
-release because the npm audit reported advisories in the 15 stack. React and
-TypeScript satisfy the installed framework's peer requirements. ESLint 10 uses
-TypeScript and React Hooks rules; Next's lint preset was excluded because its
-transitive `braces` dependency has an unpatched advisory. Dev/build use the
-supported Webpack mode because Turbopack's worker port binding failed in this
-environment. See the official
-[Next.js installation guide](https://nextjs.org/docs/app/getting-started/installation),
-[Next.js 16 upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16), and
-[Tailwind Next.js guide](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
+| Job | Model (Nebius Token Factory) |
+|---|---|
+| Read a cart or product screenshot | `nvidia/Nemotron-3.5-Super-VL` |
+| Normalise the product; pull prices out of web pages | `nvidia/Nemotron-3_5-Lightning` |
+| Write the verdict; run each seller's agent | `nvidia/nemotron-3-super-120b-a12b` |
+| Negotiate for the group, with tool calls | `nvidia/Nemotron-3-Ultra-550b-a55b` |
+| Match a screenshot to an existing Bloc | `Qwen/Qwen3-Embedding-8B` |
 
-## Layout
+- **Models never set money.** The negotiator chooses a reserve price and which seller to press;
+  seller agents bid within floors and stock enforced in code; a deterministic clearing engine
+  allocates units and sets every price.
+- **Strict contracts.** Each role has a JSON schema sent with every call (in the prompt and as
+  `response_format`), post-checks in code, and a bounded set of tools.
+- **Spending caps.** A Postgres ledger caps AI spend in total, per day, per person, per address and
+  per negotiation. If a cap is hit or Token Factory is down, the negotiation runs a labelled replay
+  instead of failing.
+- **Transparency.** Every call is logged with model id, tokens, latency and cost (no prompts,
+  images or keys) and shown on Under the hood.
+
+Details: [AI guardrails](docs/ai-guardrails.md).
+
+## How Maxx uses Tavily
+
+A live scan searches Tavily once with full page text (1 credit), preferring US retailers and
+makers' own stores and excluding news, review, video and deal sites. Only stores whose pages can be
+read can confirm stock and shipping, so when fewer than two stores confirm an offer, a second search
+asks only those stores. At most two pages are read in full with Extract.
+
+Code, not the model, decides which offers count: product pages only, a price quoted from the page,
+the same brand, model, colour and pack size, new rather than refurbished or open box, no
+card-signup or coupon prices, not on backorder. A Money Score needs two such stores, or the maker's
+own store with a warning; otherwise the verdict names the lowest price it saw and says the evidence
+is thin. A scan costs 1–4 credits, results are cached for six hours, and daily and monthly credit
+caps stop runaway spend.
+
+## What's in it
+
+- **Scan → verdict:** screenshot upload, editable fields, Money Score (0–100), one recommended move,
+  and links to the offers found.
+- **Blocs and negotiation:** commitments with a maximum price, a countdown, live streamed rounds,
+  partial fills, and a clear outcome for every member.
+- **Payments** (`PAYPAL_MODE=simulator` or `sandbox`): a PayPal hold on joining, capture of only
+  the allocated price, release for everyone else, seller payouts, agentic checkout and PYUSD.
+  See [payments](docs/payments.md).
+- **Marketplace:** seller onboarding with identity and sanctions checks, standing offers and
+  listings, a bounded seller AI agent, orders, carrier tracking, payout on delivery, refunds and
+  cases. Maxx is the platform, not the seller. See [marketplace](docs/marketplace.md).
+- **Accounts:** emailed link, Google, Apple, Microsoft or GitHub; passkeys or an authenticator app;
+  security alerts. See [accounts](docs/accounts.md) and [security](docs/security.md).
+
+## Architecture
 
 ```text
-apps/web/           Scan/verdict, Blocs, negotiation room, streaming server-side proxy
-services/api/       Typed scan, deterministic auction, injectable agents, durable events, audit logging
-scripts/            live connection smoke check, optional native Postgres helper
-docs/               foundation verification record
-compose.yaml        localhost-only Postgres with a persistent Docker volume
-.env.example        local configuration and optional future credential placeholders
+apps/web/        Next.js 16: pages, and a server-side proxy to the API (streams included)
+services/api/    FastAPI: scan, price search, Blocs, auction engine, agents, money, marketplace
+evals/           fixture and live evaluation scripts and their results
+deploy/          Dockerfiles and a production-like Compose file
+render.yaml      the hosted API's settings
 ```
 
-## Local setup
+Postgres holds everything durable through one `DATABASE_URL`: Blocs, jobs, an append-only event
+journal, a hash-chained money ledger, the price cache and model-call metadata. Screenshots are
+processed in memory and never stored.
 
-Install Node.js 22, Python 3.12, [uv](https://docs.astral.sh/uv/getting-started/installation/),
-and either Docker Desktop with Compose or native PostgreSQL. macOS/Linux commands
-below assume Bash and `make`. Docker Desktop must be running for the Docker path.
+Stack: Next.js 16.3, React 19.3, TypeScript 5.9, Tailwind 4.3; Python 3.12, FastAPI 0.142,
+Pydantic 2.13, SQLAlchemy 2.0, Alembic; Postgres 17.
 
-From the project folder:
+## Run it locally
 
-```bash
-cd /Users/souravamseekarmarti/Projects/hackathons-2026/maxx
-cp .env.example .env           # only on first setup; do not overwrite your own keys
-make setup                    # npm ci + uv sync --locked
-make db                       # start Postgres; wait for it to be healthy
-make migrate                  # create application/cache/job/event/audit tables
-```
-
-If Docker is unavailable, use native Postgres **instead of** `make db`:
+Needs Node.js 22+, Python 3.12, [uv](https://docs.astral.sh/uv/), and Docker (or a native
+Postgres 15+).
 
 ```bash
-# macOS with Homebrew's postgresql@15 already installed:
-export PATH="$(brew --prefix postgresql@15)/bin:$PATH"
-make db-native
+cp .env.example .env     # first time only; add NEBIUS_API_KEY and TAVILY_API_KEY for live mode
+make setup               # npm ci + uv sync --locked
+make db                  # Postgres on 127.0.0.1:55432 (or: make db-native)
 make migrate
+make api                 # terminal 1: http://localhost:8000
+make web                 # terminal 2: http://localhost:3001
 ```
 
-The native helper creates a new isolated cluster in ignored `.local/postgres`,
-listening only on `127.0.0.1:55432`. It uses the defaults in `.env.example` and does
-not alter an existing system database. It also works with other installed Postgres
-versions if `initdb`, `pg_ctl`, `createdb`, and `psql` are on PATH. Run either the
-Docker DB or the native DB, since both use port 55432. If using your own database,
-set `DATABASE_URL` and skip both DB helpers. Use a Psycopg SQLAlchemy URL such as
-`postgresql+psycopg://user:password@host:5432/database?sslmode=require` for Neon;
-URL-encode special characters in usernames/passwords.
-
-Run in **two separate terminals** from the `maxx/` directory:
+Live mode is the default. With no keys, run fully offline on the five synthetic samples:
 
 ```bash
-# Terminal 1
-make api
+SCAN_MODE=fixture MATCH_MODE=fixture NEGOTIATION_MODE=fixture make api
 ```
+
+Set `JUDGE_ACCESS_CODE` (12+ characters) in `.env` to turn on the judge entry at `/judge`. Every
+other setting, with its default, is in `.env.example`.
+
+Checks:
 
 ```bash
-# Terminal 2
-make web
+make check               # web lint, typecheck, tests and build; API lint, format and tests
+make smoke               # HTTP checks through web → API → database
+make verify-guardrails   # live: each model's contract against Token Factory (spends a few cents)
+make evaluate            # fixture evaluation, writes evals/core-fixture.json
 ```
 
-Open [localhost:3001](http://localhost:3001). The page opens the screenshot scan flow. Select the sample or upload an image,
-then choose **Get my verdict**. API docs: [localhost:8000/docs](http://localhost:8000/docs).
+## Hosting
 
-In a third terminal:
+The demo runs on free plans: the web app on Vercel, the API on Render, Postgres on Neon, email
+through Brevo. See [deployment](docs/deployment.md).
 
-```bash
-cd /Users/souravamseekarmarti/Projects/hackathons-2026/maxx
-make smoke        # real HTTP checks, including Next.js → FastAPI → SELECT 1
-make check        # frontend lint, typecheck, production build; backend lint + tests
-```
+## Docs
 
-Stop the web/API with Ctrl-C. Stop the database with `make db-stop` (Docker) or
-`make db-native-stop` (native). Data is retained. Restart using the same DB target.
-If running checks while using the frontend, restart `make web` after the production
-build, since development and production share `.next/`.
+- [Verification](docs/verification.md): what was measured, live and offline, and what was not
+- [AI guardrails](docs/ai-guardrails.md) · [Payments](docs/payments.md) ·
+  [Marketplace](docs/marketplace.md) · [Accounts](docs/accounts.md) ·
+  [Security](docs/security.md) · [Performance](docs/performance.md) ·
+  [Market and compliance research](docs/market-research.md) · [Deployment](docs/deployment.md)
 
-To test production locally, stop `make web`, run `npm run build`, then
-`npm run start:web`; keep the API and DB running, and run `make smoke` again.
+## Disclosure
 
-## Health contract and configuration
+New project, started 5 October 2026. In the demo scenarios the eight seller agents and the crowds
+of buyers (600 in the successful deal, 100 in each of the others) are simulated and labelled; they
+place no holds and nobody is charged for them. PayPal, carrier tracking and identity checks run in
+labelled simulators unless real keys are set. The 15 policy pages under `/legal` are drafts.
 
-- `GET /health`: API liveness, HTTP 200, `{"status":"ok","service":"maxx-api"}`.
-- `GET /health/ready`: executes `SELECT 1`; HTTP 200 with `database: "ok"`, or
-  HTTP 503 with a safe error when Postgres is unavailable.
-- Browser `GET /api/health`: Next.js calls API readiness over HTTP. It returns
-  HTTP 503 on database failure, network failure, bad upstream response, or timeout.
-- No cross-origin browser request is needed. `API_BASE_URL` is server-only.
-- Both services read the root `.env`; shell environment variables take precedence.
-  Restart services after changing configuration. `.env` is ignored by Git.
-- Local DB credentials: **user `maxx`, password `maxx_local`, database `maxx`,
-  host `127.0.0.1`, port `55432`**. These are disposable localhost defaults.
-- Default frontend port: 3001; API: 8000. When changing ports, also update
-  `API_BASE_URL`, and use `SMOKE_API_URL` / `SMOKE_WEB_URL` for the smoke checker.
-- Alembic manages all application, demand, cache, job, event and audit tables.
-  Runtime requires migrated Postgres; it never falls back to a local database.
+## License
 
-## Live configuration
-
-All pending configuration and verification actions are maintained only in
-[docs/operator-actions.md](docs/operator-actions.md). Live scan requires Nebius
-and Tavily; live negotiation requires Nebius. The configured model IDs were checked with live calls
-on Token Factory (see [AI guardrails](docs/ai-guardrails.md)). Keep keys
-server-side. Payments run in the PayPal simulator unless sandbox keys are set.
-
-## Project context and license
-
-Built from the active `../README.md`, `../_shared/`, and
-`../nebius-nvidia-hackathon/` planning files. `_archive-v1/` was excluded.
-Source: https://github.com/SVamseekar/maxx-app. MIT licensed; see `LICENSE`.
-
-## Core demo
-
-Live is the default: with `NEBIUS_API_KEY` and `TAVILY_API_KEY` set, `make api` scans with
-Nemotron 3.5 Super VL and Lightning plus Tavily, and negotiates with Nemotron 3 Ultra (negotiator)
-against seller agents on Nemotron 3 Super, all on Nebius Token Factory. If the day's AI budget
-runs out or Token Factory is unreachable, a negotiation runs the deterministic replay instead and
-the room says so (`NEGOTIATION_REPLAY_FALLBACK`). `SCAN_MODE=fixture NEGOTIATION_MODE=fixture
-MATCH_MODE=fixture make api` runs fully offline on the five synthetic samples (made-up brands).
-
-**Scan price search.** A live scan searches Tavily once with full page text, preferring US
-retailers and makers' own stores. Only stores whose pages can be read can confirm stock and
-shipping, so when fewer than two stores confirm an offer, a second search asks only those. At most
-two pages are read in full with Extract. Code, not the model, decides which offers count: product
-pages only, a price quoted from the page, the same brand, model, colour and pack size, new rather
-than refurbished or open box, no card-signup or coupon prices, and not on backorder. A score needs
-two such stores, or the maker's own store with a warning; otherwise the verdict names the lowest
-price it saw. A scan uses 1 to 4 Tavily credits, results are cached for six hours, and daily and
-monthly credit caps stop runaway spend. Details: [scan verification](docs/scan-verification.md).
-The `/scan` samples replay recorded demo prices even in live mode; its live example (a real
-headphones cart) runs the full live pipeline.
-
-[Blocs](http://localhost:3001/blocs) lists three shared demo scenarios: successful deal (600
-simulated buyers), no deal and seller withdrawal (100 each), each with eight simulated sellers.
-Simulated buyers and sellers are labelled everywhere, place no PayPal holds and are never
-charged; only real people's holds count as money. Someone else's finished Bloc leaves the list.
-
-Bloc state, jobs, events, demand signals, six-hour Tavily cache and model-call
-metadata persist in Postgres through the single `DATABASE_URL`. Run one API worker;
-process locks do not coordinate multiple workers. Screenshots are processed in RAM
-and discarded after synchronous scanning. No paid application disk is needed.
-
-See [test audit](docs/test-audit.md), [core verification](docs/nebius-core-verification.md),
-the [AI guardrails](docs/ai-guardrails.md) and the [sole operator checklist](docs/operator-actions.md).
-
-## Judge path and evaluation
-
-Set `JUDGE_ACCESS_CODE` (12+ characters) and share it in the judging notes. Open `/judge`
-(or `/judge?code=...`) and choose **Enter as a judge**: each judge gets a fresh guest account at
-once, with no email or password. Each scenario button opens the judge's own private, unlisted
-copy, so judges never share seats and nothing needs a reset. Join with a PayPal hold (simulated),
-choose **Close Bloc & negotiate**, and follow the rounds; the conversation stays on screen beside
-the outcome. **Start the seller tour** shows the seller side and can be replayed: each start
-refunds leftover tour orders quietly and clears strikes the tour caused. `/under-the-hood` lists
-every model call with its model id, latency and cost. For a judging window raise the daily AI
-budget (see `.env.example`); `AI_BUDGET_USD` still caps the total.
-
-The hosted API runs on a free instance that sleeps after 15 idle minutes. The first visit wakes
-it, which takes about a minute: every page shows a banner with a progress bar, and buttons that
-need the API wait and say "Waking server…". Open `/judge` first so it is awake by the time you scan.
-
-With fixture API/web running (`PAYPAL_MODE=off`, the core demo) and an administrator account from `make dev-account` exported as
-`MAXX_EVAL_EMAIL` and `MAXX_EVAL_PASSWORD`, `make evaluate` writes `evals/core-fixture.json`.
-Measured local results: 25/25 replayed fields on five synthetic images; 50/50
-automatic identity matches on 60 synthetic cases, ten requiring confirmation;
-zero invariant violations in 200 random auctions, including 188 partial fills.
-These are fixture/rule consistency results, not measured live-model accuracy.
-`make evaluate-live` writes a separate live report only with all modes live and
-working credentials; otherwise it reports unverified and exits 2.
-
-[PRD audit](docs/nebius-prd-audit.md) lists remaining requirements. Deployment files
-are prepared in `deploy/` and `render.yaml`; nothing is published. All required
-operator setup/verification is in the single checklist.
-
-The [8 October checkpoint review](docs/checkpoint-review.md) records the starting
-file inventory, the expired-Bloc and closing-reserve fixes, 64 backend / 7 frontend tests, fresh local
-Postgres and fixture restart/replay evidence, and the provider-verification handoff.
+MIT. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).

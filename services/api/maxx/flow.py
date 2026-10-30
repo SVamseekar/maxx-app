@@ -296,8 +296,8 @@ async def run_scan(
     elif mode == "live":
         if not settings.nebius_api_key or not settings.tavily_api_key:
             raise ProviderError(
-                "Live scanning is not configured. Follow docs/operator-actions.md to "
-                "configure providers."
+                "Live scanning is not configured. Set NEBIUS_API_KEY and TAVILY_API_KEY "
+                "(see .env.example)."
             )
         async with httpx.AsyncClient(timeout=settings.provider_timeout) as client:
             catalog = await request(
