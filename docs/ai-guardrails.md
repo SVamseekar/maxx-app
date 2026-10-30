@@ -46,7 +46,7 @@ code (not the model) holds every limit.
 |---|---|---|---|---|---|---|
 | Vision | `MODEL_VISION` | Read the first product in a screenshot | The screenshot only | `VisionItem`: title, brand, model, variant, price, currency (`USD` or null), merchant, qty, visible text | 1200 | 1 + 1 retry per scan |
 | Normalise | `MODEL_FAST` | Tidy brand, model and variant names | Title, brand, model, variant, visible text | `Identity`: brand, model, variant only | 200 | 1 + 1 retry per scan |
-| Price extraction | `MODEL_FAST` | List comparable new retail offers in the fetched pages | Item identity (title, brand, model, variant, qty, currency) and up to 8 Tavily pages | `Rows`: up to 8 rows of title, url, price, shipping, stock, quote | 1600 | 1 + 1 retry per search |
+| Price extraction | `MODEL_FAST` | List comparable new retail offers in the fetched pages | Item identity (title, brand, model, variant, qty, currency) and up to 10 Tavily pages | `Rows`: up to 8 rows of title, url, price, shipping, stock, quote | 1600 | 1 + 1 retry per scan |
 | Verdict | `MODEL_REASON` | Write one line explaining the chosen move | Item, score, the move code chose | `Move`: the same move, a headline (120 chars) and an explanation (400 chars) | 300 | 1 + 1 retry per scan |
 | Seller persona | `MODEL_SELLER` | Make one round's offer as a simulated seller | Its own private state, aggregate demand, its own feedback | `Bid`: price, quantity, withdraw | 150 | 1 + 1 retry per seller per round |
 | Seller AI agent | `MODEL_SELLER` | Make one round's offer for one real seller | The same, plus that seller's own note (280 chars) | `Bid` | 150 | 1 + 1 retry per seller per round |
@@ -193,7 +193,8 @@ time: 600 requests and 400,000 tokens a minute for Gemma 3 and Lightning (eu-nor
 - **A bug the live run found.** A model writing `"brand": null` raised `TypeError` because the
   length limit sat on `str | None`; the constraint now sits on the `str` branch only.
 - **Measured cost.** One uncached scan about $0.0013 with Super VL vision (vision $0.0005,
-  extraction $0.0007, normalise $0.00003) plus 2 Tavily credits; a cached one $0.0005. One
+  extraction $0.0007, normalise $0.00003) plus 2 Tavily credits (before the 30 Oct search
+  redesign, which uses 1 to 4: see `scan-verification.md`); a cached one $0.0005. One
   negotiation round (one negotiator decision and eight seller bids) about $0.003, so five rounds
   about $0.015.
 

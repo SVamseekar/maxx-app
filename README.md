@@ -150,8 +150,9 @@ To test production locally, stop `make web`, run `npm run build`, then
 
 All pending configuration and verification actions are maintained only in
 [docs/operator-actions.md](docs/operator-actions.md). Live scan requires Nebius
-and Tavily; live negotiation requires Nebius. Model IDs remain provisional until
-the authenticated probes pass. Keep keys server-side. PayPal is deferred.
+and Tavily; live negotiation requires Nebius. The configured model IDs were checked with live calls
+on Token Factory (see [AI guardrails](docs/ai-guardrails.md)). Keep keys
+server-side. Payments run in the PayPal simulator unless sandbox keys are set.
 
 ## Project context and license
 
@@ -167,6 +168,18 @@ against seller agents on Nemotron 3 Super, all on Nebius Token Factory. If the d
 runs out or Token Factory is unreachable, a negotiation runs the deterministic replay instead and
 the room says so (`NEGOTIATION_REPLAY_FALLBACK`). `SCAN_MODE=fixture NEGOTIATION_MODE=fixture
 MATCH_MODE=fixture make api` runs fully offline on the five synthetic samples (made-up brands).
+
+**Scan price search.** A live scan searches Tavily once with full page text, preferring US
+retailers and makers' own stores. Only stores whose pages can be read can confirm stock and
+shipping, so when fewer than two stores confirm an offer, a second search asks only those. At most
+two pages are read in full with Extract. Code, not the model, decides which offers count: product
+pages only, a price quoted from the page, the same brand, model, colour and pack size, new rather
+than refurbished or open box, no card-signup or coupon prices, and not on backorder. A score needs
+two such stores, or the maker's own store with a warning; otherwise the verdict names the lowest
+price it saw. A scan uses 1 to 4 Tavily credits, results are cached for six hours, and daily and
+monthly credit caps stop runaway spend. Details: [scan verification](docs/scan-verification.md).
+The `/scan` samples replay recorded demo prices even in live mode; its live example (a real
+headphones cart) runs the full live pipeline.
 
 [Blocs](http://localhost:3001/blocs) lists three shared demo scenarios: successful deal (600
 simulated buyers), no deal and seller withdrawal (100 each), each with eight simulated sellers.
@@ -192,6 +205,10 @@ the outcome. **Start the seller tour** shows the seller side and can be replayed
 refunds leftover tour orders quietly and clears strikes the tour caused. `/under-the-hood` lists
 every model call with its model id, latency and cost. For a judging window raise the daily AI
 budget (see `.env.example`); `AI_BUDGET_USD` still caps the total.
+
+The hosted API runs on a free instance that sleeps after 15 idle minutes. The first visit wakes
+it, which takes about a minute: every page shows a banner with a progress bar, and buttons that
+need the API wait and say "Waking server…". Open `/judge` first so it is awake by the time you scan.
 
 With fixture API/web running (`PAYPAL_MODE=off`, the core demo) and an administrator account from `make dev-account` exported as
 `MAXX_EVAL_EMAIL` and `MAXX_EVAL_PASSWORD`, `make evaluate` writes `evals/core-fixture.json`.
