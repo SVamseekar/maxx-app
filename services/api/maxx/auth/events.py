@@ -51,13 +51,28 @@ async def record(user: store.User, kind: str, request: Request, detail: str = ""
     store.add_event(user.id, kind, ip_prefix(client_ip(request)), agent, detail)
     headline = KINDS.get(kind, ("", None))[1]
     if headline:
-        await mail.send_alert(user.email, user.display_name, headline, _describe(request, detail))
+        await mail.send_alert(user.email, user.display_name, headline, detail, _where(request))
 
 
-def _describe(request: Request, detail: str) -> str:
-    agent = request.headers.get("user-agent", "an unknown browser")[:120]
-    text = f"Browser: {agent}\nNetwork: {ip_prefix(client_ip(request)) or 'unknown'}"
-    return f"{detail}\n\n{text}" if detail else text
+def _where(request: Request) -> tuple[tuple[str, str], ...]:
+    agent = request.headers.get("user-agent", "")
+    return (
+        ("Device", describe_agent(agent)),
+        ("Network", ip_prefix(client_ip(request)) or "unknown"),
+    )
+
+
+def describe_agent(agent: str) -> str:
+    """Name the device as the account page does (auth-helpers.ts), such as "Chrome on macOS"."""
+    browsers = (("Edg/", "Edge"), ("OPR/", "Opera"), ("Opera", "Opera"), ("Firefox/", "Firefox"))
+    browsers += (("Chrome/", "Chrome"), ("Safari/", "Safari"))
+    systems = (("iPhone", "iOS"), ("iPad", "iOS"), ("Android", "Android"), ("Mac OS X", "macOS"))
+    systems += (("Windows", "Windows"), ("Linux", "Linux"))
+    browser = next((name for mark, name in browsers if mark in agent), "")
+    system = next((name for mark, name in systems if mark in agent), "")
+    if browser and system:
+        return f"{browser} on {system}"
+    return browser or system or "Unknown device"
 
 
 async def note_sign_in(user: store.User, kind: str, request: Request) -> None:
@@ -70,5 +85,5 @@ async def note_sign_in(user: store.User, kind: str, request: Request) -> None:
     if has_history and not known:
         store.add_event(user.id, "new_device", prefix, agent)
         await mail.send_alert(
-            user.email, user.display_name, KINDS["new_device"][1] or "", _describe(request, "")
+            user.email, user.display_name, KINDS["new_device"][1] or "", "", _where(request)
         )

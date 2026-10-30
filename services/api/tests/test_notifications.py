@@ -44,11 +44,11 @@ def test_emails_are_sent_from_the_outbox_and_retried_after_a_failure(monkeypatch
     calls = {"n": 0}
     real = mail.deliver
 
-    async def flaky(to, subject, text):
+    async def flaky(to, subject, text, html=""):
         calls["n"] += 1
         if calls["n"] == 1:
             raise mail.DeliveryError("SMTPServerDisconnected")
-        await real(to, subject, text)
+        await real(to, subject, text, html)
 
     monkeypatch.setattr(mail, "deliver", flaky)
     assert asyncio.run(notify.deliver_due())["retry"] == 1
@@ -73,7 +73,7 @@ def test_an_email_that_keeps_failing_stops_after_the_limit(monkeypatch):
         user = sign_up(me, "me@example.com")
     notify.notify(user["id"], "order.refunded", "Refunded")
 
-    async def broken(to, subject, text):
+    async def broken(to, subject, text, html=""):
         raise mail.DeliveryError("refused")
 
     monkeypatch.setattr(mail, "deliver", broken)

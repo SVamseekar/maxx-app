@@ -20,6 +20,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from maxx import schema, storage
+from maxx.auth.mail_layout import Email
 from maxx.config import settings
 
 log = logging.getLogger(__name__)
@@ -229,14 +230,19 @@ def delete_for_user(user_id: str) -> None:
 # ---- the outbox --------------------------------------------------------------------------------
 
 
-def _email_text(name: str, row: dict) -> str:
+def _email(name: str, row: dict) -> Email:
     base = settings.public_base_url.rstrip("/")
-    link = f"\n\nOpen it on Maxx: {base}{row['link']}" if row["link"] else ""
-    return (
-        f"Hi {name},\n\n{row['title']}\n\n{row['body']}{link}\n\n"
-        "You get this email because it is about your own order, payment or seller account. "
-        f"Choose which optional updates you receive at {base}/notifications.\n"
-        "Maxx never asks for your password or a sign-in code by email.\n"
+    return Email(
+        subject=f"Maxx: {row['title']}"[:150],
+        heading=row["title"],
+        preheader=row["body"] or row["title"],
+        greeting=f"Hi {name},",
+        lines=tuple(line for line in (row["body"],) if line),
+        action=("Open in Maxx", f"{base}{row['link']}") if row["link"] else None,
+        note="Maxx never asks for your password or a sign-in code by email.",
+        footer="You get this email because it is about your own order, payment or seller account. "
+        "Choose which optional updates you receive in your",
+        footer_link=("notification settings", f"{base}/notifications"),
     )
 
 
@@ -278,9 +284,7 @@ async def deliver_due(limit: int = 50) -> dict:
             _finish(row["id"], "SKIPPED", row["email_attempts"], "no account")
             continue
         try:
-            await mail.deliver(
-                user.email, f"Maxx: {row['title']}"[:150], _email_text(user.display_name, row)
-            )
+            await mail.deliver_email(user.email, _email(user.display_name, row))
         except mail.DeliveryError as exc:
             attempts = row["email_attempts"] + 1
             if attempts >= settings.email_max_attempts:
