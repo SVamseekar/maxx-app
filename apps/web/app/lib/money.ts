@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useServerReady } from "../components/server-wake";
 import { request } from "./client";
 
 export type MoneyConfig = {
@@ -45,7 +46,8 @@ const OFF: MoneyConfig = { mode: "off", enabled: false, simulated: false, curren
 /** `null` while loading, then the configuration (the "off" shape if the service cannot be reached). */
 export function useMoneyConfig(): MoneyConfig | null {
   const [config, setConfig] = useState<MoneyConfig | null>(null);
-  useEffect(() => { let live = true; loadMoneyConfig().then(value => { if (live) setConfig(value); }, () => { if (live) setConfig(OFF); }); return () => { live = false; }; }, []);
+  const ready = useServerReady();
+  useEffect(() => { if (!ready) return; let live = true; loadMoneyConfig().then(value => { if (live) setConfig(value); }, () => { if (live) setConfig(OFF); }); return () => { live = false; }; }, [ready]);
   return config;
 }
 

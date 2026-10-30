@@ -1,6 +1,7 @@
 "use client";
 import { RefreshCw } from "lucide-react";
 import { Badge, ErrorNotice, PageIntro, Working } from "../components/ui";
+import { useServerReady } from "../components/server-wake";
 import FilterToolbar from "../components/filter-toolbar";
 import { matchesQuery } from "../lib/collection";
 import { useCallback, useEffect, useState } from "react";
@@ -11,7 +12,8 @@ export default function UnderTheHood() {
   const [data, setData] = useState<Report | null>(null), [error, setError] = useState("");
   const [query, setQuery] = useState(""), [provider, setProvider] = useState("all"), [busy, setBusy] = useState(false);
   const load = useCallback(async () => { setError(""); setBusy(true); try { setData(await api<Report>("/api/transparency")); } catch (e) { setError(e instanceof Error ? e.message : "Cannot load metadata."); } finally { setBusy(false); } }, []);
-  useEffect(() => { void load(); }, [load]);
+  const ready = useServerReady();
+  useEffect(() => { if (ready) void load(); }, [load, ready]);
   const visible = (data?.calls ?? []).filter(call => matchesQuery(`${call.provider} ${call.purpose} ${call.model ?? ""} ${call.request_id ?? ""} ${call.status}`, query) && (provider === "all" || call.provider === provider));
   const providers = [...new Set(data?.calls.map(call => call.provider) ?? [])];
   return <main id="main-content"><PageIntro title="The evidence behind Maxx" description="Actual provider activity, configured models and recorded costs. Inspect what happened, down to the request."><button disabled={busy} onClick={() => void load()}><RefreshCw size={14} className={busy ? "spin" : ""} /> {busy ? "Refreshing…" : "Refresh activity"}</button></PageIntro>

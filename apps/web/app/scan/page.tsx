@@ -8,6 +8,7 @@ import { RevealText } from "../components/ambient";
 import type { ScanResult } from "../scan-types";
 import Verdict from "../components/verdict";
 import { AppFooter, Badge, ErrorNotice, SellerWhy, Working } from "../components/ui";
+import { useServerReady } from "../components/server-wake";
 
 export default function Home() {
   const { reduced } = useMotionPreferences();
@@ -25,7 +26,8 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [scanMode, setScanMode] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => { void fetch("/api/transparency").then(response => response.ok ? response.json() : null).then(data => { if (data) setScanMode(data.modes?.scan ?? null); }).catch(() => {}); }, []);
+  const ready = useServerReady();
+  useEffect(() => { if (!ready) return; void fetch("/api/transparency").then(response => response.ok ? response.json() : null).then(data => { if (data) setScanMode(data.modes?.scan ?? null); }).catch(() => {}); }, [ready]);
   useEffect(() => {
     if (!file) return;
     const url = URL.createObjectURL(file); setPreview(url);
@@ -67,7 +69,7 @@ export default function Home() {
     finally { setLoading(false); }
   }
   return <main id="main-content" className="scan-page">
-    <div className="scan-intro"><div><h1><RevealText lines={["Is this the best price?", "Or wait for the group."]} /></h1><p>Screenshot a product page. Maxx finds what it costs elsewhere, then tells you to buy now,<br className="desktop-break" /> wait, skip it, or join a Bloc of people who want the same thing.</p></div><Badge tone={scanMode === "fixture" ? "warn" : "neutral"}>{scanMode === "fixture" ? "Fixture demo · no live prices" : scanMode === "live" ? "Live scan configured" : "Scan a product"}</Badge></div>
+    <div className="scan-intro"><div><h1><RevealText lines={["Is this the best price?", "Or wait for the group."]} /></h1><p>Screenshot a product page. Maxx finds what it costs elsewhere, then tells you to buy now, wait, skip it, or join a Bloc of people who want the same thing.</p></div><Badge tone={scanMode === "fixture" ? "warn" : "neutral"}>{scanMode === "fixture" ? "Fixture demo · no live prices" : scanMode === "live" ? "Live scan configured" : "Scan a product"}</Badge></div>
     <ol className="scan-steps" aria-label="Scan workflow"><li className={file ? "complete" : "current"}><span>{file ? <Check size={14} /> : <ImagePlus size={14} />}</span><span>{file ? "Screenshot ready" : "Add a screenshot"}</span></li><li className={result ? "complete" : loading ? "current" : ""}><span>{result ? <Check size={14} /> : <ScanLine size={14} />}</span><span>{result ? "Evidence ready" : loading ? "Checking the evidence" : "Check the evidence"}</span></li><li className={result ? "current" : ""}><span><ArrowUpRight size={14} /></span><span>Buy, wait or join a group</span></li></ol>
     <div className="scan-workspace">
       <section className="upload-workspace" aria-label="Upload a screenshot">
@@ -78,7 +80,7 @@ export default function Home() {
         </div>
         <div className="upload-controls"><label className="upload-chooser"><Upload size={22} aria-hidden="true" /><span><strong>{file?.name ?? "Choose your shopping screenshot"}</strong><small>PNG, JPG or WebP · up to 8 MB</small></span><input ref={input} type="file" accept="image/png,image/jpeg,image/webp" disabled={loading} onChange={event => choose(event.target.files?.[0] ?? null)} /></label><motion.button whileTap={reduced ? undefined : { scale: .97 }} className="button primary scan-button" disabled={!file || loading} onClick={() => void scan()}><AnimatePresence mode="wait" initial={false}><motion.span key={loading ? "checking" : "ready"} initial={{ opacity: 0, y: reduced ? 0 : 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reduced ? 0 : -8 }} transition={{ duration: reduced ? 0 : .14 }}>{loading ? "Checking screenshot…" : "Get my verdict"}</motion.span></AnimatePresence><ScanLine size={18} /></motion.button></div>
         <div className="sample-selector"><span>Try a sample</span><button aria-pressed={file?.name === "headphones.png"} disabled={loading} onClick={() => void sample()}><Headphones size={15} /> Headphones</button><button aria-pressed={file?.name === "phone.png"} disabled={loading} onClick={() => void sample("phone")}><Smartphone size={15} /> Phone</button><button aria-pressed={file?.name === "vacuum.png"} disabled={loading} onClick={() => void sample("vacuum")}><ScanLine size={15} /> Vacuum</button><small className="muted">Samples replay recorded demo prices for made-up products, with no live calls. For live prices and links, upload a screenshot of a branded product page or cart.</small></div>
-        <div className="sample-selector"><span>Live example</span><button aria-pressed={file?.name === "live-headphones.png"} disabled={loading} onClick={() => void sample("live-headphones")}><Globe size={15} /> Sony WH-1000XM5</button><small className="muted">A real product scanned live: Nemotron reads the screenshot and Tavily checks the web for prices now.</small></div>
+        {scanMode === "live" && <div className="sample-selector"><span>Live example</span><button aria-pressed={file?.name === "live-headphones.png"} disabled={loading} onClick={() => void sample("live-headphones")}><Globe size={15} /> Sony WH-1000XM5</button><small className="muted">A real product scanned live: Nemotron reads the screenshot and Tavily checks the web for prices now.</small></div>}
         <label className="ownership-checkbox"><input type="checkbox" checked={owns} disabled={loading} onChange={event => { setOwns(event.target.checked); setResult(null); }} /><span>I already own something similar</span></label>
         <p className="privacy small muted">Processed in memory. Live scans send the image to Nebius and product details to Tavily. Comparisons currently support USD.</p><SellerWhy />
       </section>

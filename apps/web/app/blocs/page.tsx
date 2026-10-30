@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, usd, type Bloc, type BlocSummary } from "./types";
 import { ArrowUpRight, Plus, Search, Users } from "lucide-react";
 import { AppFooter, Badge, ErrorNotice, PageIntro, SellerWhy, Working } from "../components/ui";
+import { useServerReady } from "../components/server-wake";
 import { useAuth } from "../components/auth";
 import { loginPath } from "../lib/auth-helpers";
 import { statusLabel } from "../presentation";
@@ -29,7 +30,9 @@ export default function Blocs() {
   const [key,setKey] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const load = useCallback(async () => { setError(""); setBusy(true); try { setBlocs(await api<BlocSummary[]>("/api/blocs")); } catch (e) { setError(e instanceof Error ? e.message : "Cannot load Blocs."); } finally { setBusy(false); setLoaded(true); } }, []);
-  useEffect(() => { const params = new URLSearchParams(window.location.search); setTitle(params.get("title") ?? ""); setPrice(params.get("price") ?? ""); void load(); }, [load]);
+  const ready = useServerReady();
+  useEffect(() => { const params = new URLSearchParams(window.location.search); setTitle(params.get("title") ?? ""); setPrice(params.get("price") ?? ""); }, []);
+  useEffect(() => { if (ready) void load(); }, [load, ready]);
   async function findMatch() {
     setBusy(true); setError(""); setConfirmed(false); setKey("");
     try { const result = await api<NonNullable<typeof match>>("/api/catalog/match", {title}); setMatch(result); if (!result.requires_confirmation) setKey(result.candidates[0]?.product_key ?? ""); }

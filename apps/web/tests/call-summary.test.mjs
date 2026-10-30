@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { callSummary } from "../app/lib/call-summary.ts";
+import { callSummary, tokenLine } from "../app/lib/call-summary.ts";
 
 const call = (provider, model, cost_usd = null) => ({ provider, model, cost_usd });
 
@@ -20,4 +20,10 @@ test("a live negotiation names its Nemotron models, count and cost", () => {
 test("a replay says it made no model calls", () => {
   assert.equal(callSummary([]), "No model calls");
   assert.equal(callSummary([call("tavily", null), call("tavily", null)]), "2 Tavily searches, no model calls");
+});
+
+test("token usage reads as words, not JSON", () => {
+  assert.equal(tokenLine({ completion_tokens: 18, prompt_tokens: 1870, total_tokens: 1888 }), "1,870 in, 18 out tokens");
+  assert.equal(tokenLine({ total_tokens: 40 }), "40 tokens");
+  assert.equal(tokenLine(null), "tokens unavailable");
 });

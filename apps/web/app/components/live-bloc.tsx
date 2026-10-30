@@ -7,16 +7,19 @@ import { usd, type BlocSummary } from "../blocs/types";
 import { statusLabel } from "../presentation";
 import { useMoneyConfig, moneyLabel } from "../lib/money";
 import { AnimatedNumber } from "./motion-system";
+import { useServerReady } from "./server-wake";
 
 /** Every displayed metric comes from the selected Bloc. No decorative demand data. */
 export default function LiveBloc() {
   const money = useMoneyConfig();
   const [bloc, setBloc] = useState<BlocSummary | null | undefined>(undefined);
+  const ready = useServerReady();
   useEffect(() => {
+    if (!ready) return;
     let live = true;
     request<BlocSummary[]>("/api/blocs").then(rows => { if (live) setBloc(rows.filter(row => row.status === "OPEN" && row.buyers > 0).sort((a, b) => b.buyers - a.buyers)[0] ?? rows.filter(row => row.buyers > 0).sort((a, b) => b.buyers - a.buyers)[0] ?? rows[0] ?? null); }).catch(() => { if (live) setBloc(null); });
     return () => { live = false; };
-  }, []);
+  }, [ready]);
   if (!bloc) return <aside className="live-purchase" aria-busy={bloc === undefined}><span className="section-label">The collective advantage</span><h2>Your purchase.<br />With company.</h2><p>{bloc === undefined ? "Finding a group on this server…" : "Start a Bloc for your exact product and bring buyers together."}</p><Link className="button primary" href="/blocs">Explore Blocs <ArrowUpRight size={17} /></Link></aside>;
   return <aside className="live-purchase" aria-label="A buying group on this server">
     <div className="live-purchase-top"><span className="section-label">On Maxx now</span><span className="live-purchase-status">{statusLabel(bloc.status)}</span></div>

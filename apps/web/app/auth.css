@@ -31,9 +31,9 @@
 .verify-banner strong { color: var(--ink); font-weight: 600; }
 .verify-banner .quiet-button { min-height: 36px; color: var(--ink); border-color: color-mix(in srgb, var(--warn), transparent 60%); }
 .verify-banner .icon-button { width: 36px; height: 36px; min-height: 36px; border: 0; }
+/* The icon sits in the sentence so it does not take a row of its own on a phone. */
+.wake-banner > span:first-child svg { display: inline-block; vertical-align: -3px; margin-right: 8px; }
 /* Fills over the minute a free instance takes to start, stopping short until the API answers. */
-.wake-banner { color: var(--muted); background: var(--panel); border-bottom-color: var(--line); }
-.wake-banner svg { color: var(--accent); }
 .wake-bar { flex: 1 0 100%; max-width: 520px; height: 4px; border-radius: 999px; background: var(--line-strong); overflow: hidden; }
 .wake-bar span { display: block; height: 100%; width: 95%; border-radius: inherit; background: var(--accent); transform-origin: left; animation: wake-fill 60s cubic-bezier(.2,.6,.3,1) both; }
 @keyframes wake-fill { from { transform: scaleX(.04); } to { transform: scaleX(1); } }

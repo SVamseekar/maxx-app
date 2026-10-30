@@ -43,9 +43,8 @@ export function ServerWakeProvider({ children }: { children: ReactNode }) {
 
 export function ServerWakeBanner() {
   const { state, retry } = useContext(WakeContext);
-  if (state === "waking") return <div className="verify-banner wake-banner" role="status">
-    <Hourglass size={16} aria-hidden="true" />
-    <span><strong>Waking the demo server.</strong> Free hosting sleeps when no one is using it, so the first visit takes about a minute. Live Nemotron is ready when this bar fills.</span>
+  if (state === "waking") return <div className="verify-banner is-calm wake-banner" role="status">
+    <span><Hourglass size={16} aria-hidden="true" /><strong>Waking the demo server.</strong> Free hosting sleeps when no one is using it, so the first visit takes about a minute. Live Nemotron is ready when this bar fills.</span>
     <span className="wake-bar" aria-hidden="true"><span /></span>
   </div>;
   if (state === "stuck") return <div className="verify-banner" role="alert">

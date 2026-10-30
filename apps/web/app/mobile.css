@@ -39,7 +39,6 @@
 
   .seller-editorial > div:first-child { padding: 0; }
 
-  .scan-intro br.desktop-break { display: none; }
 
   /* ---- Type floor: 12px ---- */
   .auth-art-credit, .auth-category-picker > button, .auth-benefit > div > p, .auth-mode-note,

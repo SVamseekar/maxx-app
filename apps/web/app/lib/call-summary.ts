@@ -19,3 +19,12 @@ export function callSummary(calls: Call[]): string {
     cost > 0 ? `about $${cost.toFixed(3)}` : "",
   ].filter(Boolean).join(" · ");
 }
+
+/** A call's token usage in words, short enough to wrap on a phone. */
+export function tokenLine(tokens: Record<string, unknown> | null): string {
+  if (!tokens) return "tokens unavailable";
+  const { prompt_tokens: input, completion_tokens: output, total_tokens: total } = tokens;
+  if (typeof input === "number" && typeof output === "number") return `${input.toLocaleString("en-US")} in, ${output.toLocaleString("en-US")} out tokens`;
+  if (typeof total === "number") return `${total.toLocaleString("en-US")} tokens`;
+  return Object.entries(tokens).map(([key, value]) => `${key} ${String(value)}`).join(", ");
+}

@@ -287,8 +287,8 @@ async def run_scan(
         item = Item.model_validate(case["item"])
         rows = [PriceRow.model_validate(r) for r in case["rows"]]
         warnings.append(
-            "Sample replay: this sample's recorded demo prices, with no live calls. Upload a "
-            "screenshot of your own cart for live prices."
+            "Sample replay: this sample's recorded demo prices, with no live calls. For live "
+            "prices, upload a screenshot of a branded product page or cart."
             if settings.scan_mode == "live"
             else "Fixture replay: extraction and prices are canned test data, not live provider "
             "results."
